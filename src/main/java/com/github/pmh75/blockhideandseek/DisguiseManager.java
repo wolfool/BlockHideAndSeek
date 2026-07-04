@@ -41,7 +41,15 @@ public class DisguiseManager {
         display.setTransformation(transform);
         display.setTeleportDuration(1);
 
-        player.setInvisible(true);
+        int gameMode = plugin.getConfig().getInt("game-mode", 2);
+        if (gameMode == 1) {
+            // 모드 1: 쉬프트 누를 때만 블럭 보임, 평소에는 숨김
+            display.setVisibleByDefault(false);
+            player.setInvisible(true);
+        } else {
+            // 모드 2: 항상 블럭이 따라다님
+            player.setInvisible(true);
+        }
 
         disguises.put(player.getUniqueId(), new DisguiseInfo(display, material));
     }
@@ -83,6 +91,11 @@ public class DisguiseManager {
         if (!isSneaking) {
             // 고정 해제
             info.isSolidified = false;
+            if (gameMode == 1) {
+                // 모드 1: 블럭 숨기기
+                info.display.setVisibleByDefault(false);
+                Bukkit.getOnlinePlayers().forEach(op -> op.hideEntity(plugin, info.display));
+            }
             info.display.setTeleportDuration(1);
             return true;
         }
@@ -94,13 +107,23 @@ public class DisguiseManager {
             Block blockBelow = pLoc.getWorld().getBlockAt(pLoc.getBlockX(), pLoc.getBlockY() - 1, pLoc.getBlockZ());
 
             if (blockBelow.getType().isAir() || !blockBelow.getType().isSolid()) {
-                // 발 아래 블럭 없음 → 고정 불가
                 return false;
             }
 
-            // 발 아래 블럭 위에 올라타는 위치 (Y = blockBelow.getY() + 1)
+            // 블럭 표시 + 고정
             info.isSolidified = true;
             info.display.setTeleportDuration(0);
+            info.display.setVisibleByDefault(true);
+            Bukkit.getOnlinePlayers().forEach(op -> op.showEntity(plugin, info.display));
+
+            // 즉시 발 아래 블럭 위치로 이동
+            Location snapLoc = new Location(
+                    pLoc.getWorld(),
+                    pLoc.getBlockX() + 0.5,
+                    blockBelow.getY() + 1.0,
+                    pLoc.getBlockZ() + 0.5
+            );
+            info.display.teleport(snapLoc);
         } else {
             // 모드 2: 현재 위치 격자에 고정
             info.isSolidified = true;
@@ -137,24 +160,29 @@ public class DisguiseManager {
                     Location pLoc = p.getLocation();
 
                     if (!info.isSolidified) {
-                        // 부드럽게 따라다님
-                        info.display.teleport(pLoc);
+                        if (gameMode == 1) {
+                            // 모드 1: 쉬프트 안 누르면 블럭 안 보임 (아무것도 안 함)
+                        } else {
+                            // 모드 2: 부드럽게 따라다님
+                            info.display.teleport(pLoc);
+                        }
                     } else if (gameMode == 1) {
-                        // 모드 1: 발 아래 블럭 위에 고정 (이동 중에도 격자 따라감)
+                        // 모드 1: 쉬프트 중 - 발 아래 블럭 위에 고정
                         Block blockBelow = pLoc.getWorld().getBlockAt(
                                 pLoc.getBlockX(), pLoc.getBlockY() - 1, pLoc.getBlockZ());
 
                         if (blockBelow.getType().isAir() || !blockBelow.getType().isSolid()) {
-                            // 발 아래 없어지면 고정 해제
+                            // 발 아래 없어지면 고정 해제 + 블럭 숨기기
                             info.isSolidified = false;
-                            info.display.setTeleportDuration(1);
-                            info.display.teleport(pLoc);
-                            // 알림은 GameListener에서 sneak 해제로 처리
+                            info.display.setVisibleByDefault(false);
+                            Bukkit.getOnlinePlayers().forEach(op -> op.hideEntity(plugin, info.display));
+                            p.sendActionBar(net.kyori.adventure.text.Component.text(
+                                    "§c⚠ 발 아래 블럭이 없어 고정이 풀렸습니다!"));
                         } else {
                             Location snapLoc = new Location(
                                     pLoc.getWorld(),
                                     pLoc.getBlockX() + 0.5,
-                                    blockBelow.getY() + 1.0, // 발 아래 블럭 바로 위
+                                    blockBelow.getY() + 1.0,
                                     pLoc.getBlockZ() + 0.5
                             );
                             info.display.teleport(snapLoc);
