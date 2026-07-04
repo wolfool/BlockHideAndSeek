@@ -1,0 +1,17 @@
+# 악어 블럭 숨바꼭질 설정 파일
+
+times:
+  hide-time: 60 # 도망자가 숨을 수 있는 시간 (초)
+  game-time: 300 # 술래잡기 진행 시간 (초)
+
+hints:
+  max-usages: 3 # 술래가 힌트(폭죽)를 사용할 수 있는 횟수
+
+selectable-blocks:
+  - BOOKSHELF
+  - CRAFTING_TABLE
+  - HAY_BLOCK
+  - MELON
+  - PUMPKIN
+  - OAK_LOG
+  - DIAMOND_ORE

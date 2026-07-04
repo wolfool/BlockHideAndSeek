@@ -1,0 +1,11 @@
+# 빌드 산출물
+build/
+.gradle/
+
+# IDE 파일
+.idea/
+*.iml
+.vscode/
+
+# 키트 저장 파일 (서버마다 다름)
+src/main/resources/kits.yml

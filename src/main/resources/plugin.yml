@@ -1,0 +1,9 @@
+name: BlockHideAndSeek
+version: '${project.version}'
+main: com.github.pmh75.blockhideandseek.BlockHideAndSeek
+api-version: '1.21'
+commands:
+  bhs:
+    description: "블럭 숨바꼭질 메인 명령어"
+    aliases: [숨바꼭질]
+    usage: "/bhs <명령어>"
