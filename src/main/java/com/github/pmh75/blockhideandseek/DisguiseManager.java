@@ -3,13 +3,12 @@ package com.github.pmh75.blockhideandseek;
 import org.bukkit.Bukkit;
 import org.bukkit.Location;
 import org.bukkit.Material;
+import org.bukkit.block.Block;
 import org.bukkit.entity.BlockDisplay;
 import org.bukkit.entity.EntityType;
 import org.bukkit.entity.Player;
 import org.bukkit.scheduler.BukkitRunnable;
 import org.bukkit.util.Transformation;
-import org.joml.AxisAngle4f;
-import org.joml.Vector3f;
 
 import java.util.HashMap;
 import java.util.Map;
@@ -25,36 +24,31 @@ public class DisguiseManager {
         startUpdateTask();
     }
 
-    public void disguise(Player player, Material material) {
-        if (disguises.containsKey(player.getUniqueId())) {
-            undisguise(player);
-        }
+    // ─────────────────────────────────────────────
+    //  변신
+    // ─────────────────────────────────────────────
 
-        // Spawn BlockDisplay
+    public void disguise(Player player, Material material) {
+        undisguise(player); // 기존 위장 제거
+
         Location spawnLoc = player.getLocation();
         BlockDisplay display = (BlockDisplay) player.getWorld().spawnEntity(spawnLoc, EntityType.BLOCK_DISPLAY);
         display.setBlock(Bukkit.createBlockData(material));
-        
-        // Center the block display to the player (default is corner)
-        // BlockDisplay origin is a corner, so we translate it by -0.5, 0, -0.5 so it centers on the player
+
+        // 블럭 디스플레이는 모서리 기준이므로 -0.5 오프셋 적용
         Transformation transform = display.getTransformation();
         transform.getTranslation().set(-0.5f, 0f, -0.5f);
         display.setTransformation(transform);
-        
-        // Make teleportation smooth (1 tick interpolation)
         display.setTeleportDuration(1);
 
         player.setInvisible(true);
 
-        DisguiseInfo info = new DisguiseInfo(display, material);
-        disguises.put(player.getUniqueId(), info);
+        disguises.put(player.getUniqueId(), new DisguiseInfo(display, material));
     }
 
     public void undisguise(Player player) {
         DisguiseInfo info = disguises.remove(player.getUniqueId());
-        if (info != null) {
-            info.display.remove();
-        }
+        if (info != null) info.display.remove();
         player.setInvisible(false);
     }
 
@@ -67,17 +61,52 @@ public class DisguiseManager {
         return info != null && info.isSolidified;
     }
 
-    public void toggleSolidify(Player player, boolean isSneaking) {
+    public Material getDisguiseMaterial(Player player) {
         DisguiseInfo info = disguises.get(player.getUniqueId());
-        if (info == null) return;
+        return info == null ? null : info.material;
+    }
 
-        info.isSolidified = isSneaking;
-        
-        if (isSneaking) {
-            info.display.setTeleportDuration(0); // instant snap
-        } else {
-            info.display.setTeleportDuration(1); // smooth follow
+    // ─────────────────────────────────────────────
+    //  쉬프트 고정 처리
+    // ─────────────────────────────────────────────
+
+    /**
+     * @param isSneaking true = 고정 시도, false = 고정 해제
+     * @return false = 고정 실패 (발 아래 블럭 없음, 모드 1 전용)
+     */
+    public boolean toggleSolidify(Player player, boolean isSneaking) {
+        DisguiseInfo info = disguises.get(player.getUniqueId());
+        if (info == null) return true;
+
+        int gameMode = plugin.getConfig().getInt("game-mode", 2);
+
+        if (!isSneaking) {
+            // 고정 해제
+            info.isSolidified = false;
+            info.display.setTeleportDuration(1);
+            return true;
         }
+
+        // 고정 시도
+        if (gameMode == 1) {
+            // 모드 1: 발 아래 블럭에 고정
+            Location pLoc = player.getLocation();
+            Block blockBelow = pLoc.getWorld().getBlockAt(pLoc.getBlockX(), pLoc.getBlockY() - 1, pLoc.getBlockZ());
+
+            if (blockBelow.getType().isAir() || !blockBelow.getType().isSolid()) {
+                // 발 아래 블럭 없음 → 고정 불가
+                return false;
+            }
+
+            // 발 아래 블럭 위에 올라타는 위치 (Y = blockBelow.getY() + 1)
+            info.isSolidified = true;
+            info.display.setTeleportDuration(0);
+        } else {
+            // 모드 2: 현재 위치 격자에 고정
+            info.isSolidified = true;
+            info.display.setTeleportDuration(0);
+        }
+        return true;
     }
 
     public void cleanupAll() {
@@ -90,22 +119,48 @@ public class DisguiseManager {
         }
     }
 
+    // ─────────────────────────────────────────────
+    //  매 틱 위치 업데이트
+    // ─────────────────────────────────────────────
+
     private void startUpdateTask() {
         new BukkitRunnable() {
             @Override
             public void run() {
+                int gameMode = plugin.getConfig().getInt("game-mode", 2);
+
                 for (Map.Entry<UUID, DisguiseInfo> entry : disguises.entrySet()) {
                     Player p = Bukkit.getPlayer(entry.getKey());
                     if (p == null || !p.isOnline()) continue;
 
                     DisguiseInfo info = entry.getValue();
                     Location pLoc = p.getLocation();
-                    
+
                     if (!info.isSolidified) {
-                        // Smoothly follow player
+                        // 부드럽게 따라다님
                         info.display.teleport(pLoc);
+                    } else if (gameMode == 1) {
+                        // 모드 1: 발 아래 블럭 위에 고정 (이동 중에도 격자 따라감)
+                        Block blockBelow = pLoc.getWorld().getBlockAt(
+                                pLoc.getBlockX(), pLoc.getBlockY() - 1, pLoc.getBlockZ());
+
+                        if (blockBelow.getType().isAir() || !blockBelow.getType().isSolid()) {
+                            // 발 아래 없어지면 고정 해제
+                            info.isSolidified = false;
+                            info.display.setTeleportDuration(1);
+                            info.display.teleport(pLoc);
+                            // 알림은 GameListener에서 sneak 해제로 처리
+                        } else {
+                            Location snapLoc = new Location(
+                                    pLoc.getWorld(),
+                                    pLoc.getBlockX() + 0.5,
+                                    blockBelow.getY() + 1.0, // 발 아래 블럭 바로 위
+                                    pLoc.getBlockZ() + 0.5
+                            );
+                            info.display.teleport(snapLoc);
+                        }
                     } else {
-                        // Snap to current grid
+                        // 모드 2: 현재 위치 격자에 고정 (이동 시 격자 단위로 이동)
                         Location snapLoc = new Location(
                                 pLoc.getWorld(),
                                 pLoc.getBlockX() + 0.5,
@@ -119,12 +174,16 @@ public class DisguiseManager {
         }.runTaskTimer(plugin, 1L, 1L);
     }
 
+    // ─────────────────────────────────────────────
+    //  내부 데이터
+    // ─────────────────────────────────────────────
+
     private static class DisguiseInfo {
         BlockDisplay display;
         Material material;
         boolean isSolidified = false;
 
-        public DisguiseInfo(BlockDisplay display, Material material) {
+        DisguiseInfo(BlockDisplay display, Material material) {
             this.display = display;
             this.material = material;
         }

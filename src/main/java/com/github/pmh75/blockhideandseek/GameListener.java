@@ -28,7 +28,14 @@ public class GameListener implements Listener {
 
     @EventHandler
     public void onSneak(PlayerToggleSneakEvent event) {
-        plugin.getDisguiseManager().toggleSolidify(event.getPlayer(), event.isSneaking());
+        Player player = event.getPlayer();
+        boolean success = plugin.getDisguiseManager().toggleSolidify(player, event.isSneaking());
+
+        // 모드 1에서 발 아래 블럭 없어 고정 실패한 경우
+        if (event.isSneaking() && !success) {
+            player.sendActionBar(net.kyori.adventure.text.Component.text(
+                    "§c⚠ 발 아래 블럭이 없어 고정할 수 없습니다!"));
+        }
     }
 
     // ─────────────────────────────────────────────

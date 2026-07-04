@@ -69,6 +69,19 @@ public class MainCommand implements CommandExecutor {
                 plugin.getKitManager().openKitEditor(player, args[1]);
             }
 
+            case "mode" -> {
+                if (!player.isOp()) { noPermission(player); return true; }
+                if (args.length < 2 || (!args[1].equals("1") && !args[1].equals("2"))) {
+                    player.sendMessage(ChatColor.RED + "사용법: /bhs mode [1|2]");
+                    player.sendMessage(ChatColor.GRAY + "  1 = 쉬프트 시 발 아래 블럭 고정");
+                    player.sendMessage(ChatColor.GRAY + "  2 = 주기적 블럭 변경 선택형");
+                    return true;
+                }
+                plugin.getConfig().set("game-mode", Integer.parseInt(args[1]));
+                plugin.saveConfig();
+                player.sendMessage(ChatColor.GREEN + "게임 모드를 " + args[1] + "번으로 변경했습니다.");
+            }
+
             case "reload" -> {
                 if (!player.isOp()) { noPermission(player); return true; }
                 plugin.reloadConfig();

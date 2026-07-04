@@ -69,8 +69,9 @@ public class GameManager {
         }
 
         List<Player> online = new ArrayList<>(Bukkit.getOnlinePlayers());
-        if (online.size() < 2) {
-            broadcast(ChatColor.RED + "게임을 시작하려면 최소 2명이 필요합니다.");
+        int minPlayers = plugin.getConfig().getInt("min-players", 2);
+        if (online.size() < minPlayers) {
+            broadcast(ChatColor.RED + "게임을 시작하려면 최소 " + minPlayers + "명이 필요합니다.");
             return;
         }
 
@@ -97,6 +98,8 @@ public class GameManager {
             bossBar.addPlayer(p);
         }
 
+        int gameMode = plugin.getConfig().getInt("game-mode", 2);
+
         // 역할 안내 및 스폰 이동
         for (UUID uid : seekers) {
             Player p = Bukkit.getPlayer(uid);
@@ -105,7 +108,6 @@ public class GameManager {
             p.sendMessage(ChatColor.RED + "당신은 술래입니다!");
             if (seekerSpawn != null) p.teleport(seekerSpawn);
             p.setGameMode(GameMode.ADVENTURE);
-            // 술래는 숨기 시간 동안 눈을 가림 (blindness)
             p.addPotionEffect(new org.bukkit.potion.PotionEffect(
                     org.bukkit.potion.PotionEffectType.BLINDNESS, 20 * 5, 1, false, false));
             plugin.getKitManager().giveKit(p, "seeker");
@@ -121,11 +123,16 @@ public class GameManager {
             plugin.getKitManager().giveKit(p, "hider");
         }
 
-        // 블럭 선택 GUI 열기 (도망자)
+        // 모드별 블럭 선택
         Bukkit.getScheduler().runTaskLater(plugin, () -> {
             for (UUID uid : hiders) {
                 Player p = Bukkit.getPlayer(uid);
-                if (p != null) plugin.getBlockSelectMenu().open(p);
+                if (p == null) continue;
+                if (gameMode == 2) {
+                    plugin.getBlockSelectMenu().open(p);
+                } else {
+                    plugin.getBlockSelectMenu().applyMode1Default(p);
+                }
             }
         }, 20L);
 
@@ -180,6 +187,11 @@ public class GameManager {
             }
         }
 
+        // 모드 2: 주기적 블럭 변경 태스크 시작
+        if (plugin.getConfig().getInt("game-mode", 2) == 2) {
+            plugin.getBlockSelectMenu().startChangeTask();
+        }
+
         startTimer(() -> endGame(false));
     }
 
@@ -190,6 +202,9 @@ public class GameManager {
     public void endGame(boolean seekerWin) {
         if (timerTask != null) timerTask.cancel();
         state = GameState.ENDED;
+
+        // 모드 2 변경 타이머 중지
+        plugin.getBlockSelectMenu().stopChangeTask();
 
         if (seekerWin) {
             broadcast(ChatColor.RED + "" + ChatColor.BOLD + "술래 승리! 모든 도망자를 잡았습니다!");
