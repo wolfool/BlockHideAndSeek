@@ -65,11 +65,13 @@ public class DisguiseManager {
         player.hideEntity(plugin, display);
 
         org.bukkit.inventory.ItemStack originalHelmet = player.getEquipment().getHelmet();
+        DisguiseInfo newInfo = new DisguiseInfo(display, material, originalHelmet);
+        disguises.put(player.getUniqueId(), newInfo);
+
         if (gameMode == 2) {
             player.getEquipment().setHelmet(new org.bukkit.inventory.ItemStack(material));
+            createHitbox(player, newInfo, spawnLoc);
         }
-
-        disguises.put(player.getUniqueId(), new DisguiseInfo(display, material, originalHelmet));
     }
 
     private void hidePlayerFromAll(Player player) {
@@ -153,14 +155,15 @@ public class DisguiseManager {
             // 고정 해제
             info.isSolidified = false;
             if (gameMode == 1) {
-                // 모드 1: 블럭 숨기고 본체 표시
+                // 모드 1: 블럭 숨기고 본체 표시 및 히트박스 제거
                 info.display.setVisibleByDefault(false);
                 Bukkit.getOnlinePlayers().forEach(op -> op.hideEntity(plugin, info.display));
                 showPlayerToAll(player);
-            }
-            if (info.hitbox != null) {
-                info.hitbox.remove();
-                info.hitbox = null;
+                
+                if (info.hitbox != null) {
+                    info.hitbox.remove();
+                    info.hitbox = null;
+                }
             }
             info.display.setTeleportDuration(1);
             return true;
@@ -267,6 +270,9 @@ public class DisguiseManager {
                         } else {
                             // 모드 2: 부드럽게 따라다님
                             info.display.teleport(pLoc);
+                            if (info.hitbox != null) {
+                                info.hitbox.teleport(pLoc);
+                            }
                         }
                     } else if (gameMode == 1) {
                         // 모드 1: 쉬프트 중 - 발 아래 블럭 위에 고정
