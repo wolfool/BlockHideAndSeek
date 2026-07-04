@@ -1,6 +1,6 @@
 # BlockHideAndSeek
 
-**악어** 스타일 블럭 숨바꼭질 Minecraft 플러그인 (Paper 1.21.4)
+스타일 블럭 숨바꼭질 Minecraft 플러그인 (Paper 1.21.4)
 
 ## 기능
 - 🟩 도망자 → 블럭으로 변신 (BlockDisplay, 외부 플러그인 불필요)
