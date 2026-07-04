@@ -1,13 +1,23 @@
 package com.github.pmh75.blockhideandseek;
 
+import net.md_5.bungee.api.chat.ClickEvent;
+import net.md_5.bungee.api.chat.HoverEvent;
+import net.md_5.bungee.api.chat.TextComponent;
+import net.md_5.bungee.api.chat.hover.content.Text;
 import org.bukkit.ChatColor;
 import org.bukkit.command.Command;
 import org.bukkit.command.CommandExecutor;
 import org.bukkit.command.CommandSender;
+import org.bukkit.command.TabCompleter;
 import org.bukkit.entity.Player;
 import org.jetbrains.annotations.NotNull;
 
-public class MainCommand implements CommandExecutor {
+import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.Collections;
+import java.util.List;
+
+public class MainCommand implements CommandExecutor, TabCompleter {
 
     private final BlockHideAndSeek plugin;
 
@@ -119,15 +129,76 @@ public class MainCommand implements CommandExecutor {
         return true;
     }
 
+    @Override
+    public List<String> onTabComplete(@NotNull CommandSender sender, @NotNull Command command, @NotNull String alias, @NotNull String[] args) {
+        if (args.length == 1) {
+            List<String> options = new ArrayList<>();
+            options.add("hint");
+            if (sender.isOp()) {
+                options.addAll(Arrays.asList("start", "stop", "setlobby", "sethider", "setseeker", "setkit", "mode", "reload", "test", "untest"));
+            }
+            return filter(options, args[0]);
+        }
+
+        if (args.length == 2) {
+            if (sender.isOp()) {
+                if (args[0].equalsIgnoreCase("setkit")) {
+                    return filter(Arrays.asList("hider", "seeker"), args[1]);
+                }
+                if (args[0].equalsIgnoreCase("mode")) {
+                    return filter(Arrays.asList("1", "2"), args[1]);
+                }
+                if (args[0].equalsIgnoreCase("test")) {
+                    List<String> materials = new ArrayList<>();
+                    for (org.bukkit.Material mat : org.bukkit.Material.values()) {
+                        if (mat.isBlock()) materials.add(mat.name());
+                    }
+                    return filter(materials, args[1]);
+                }
+            }
+        }
+
+        return Collections.emptyList();
+    }
+
+    private List<String> filter(List<String> list, String prefix) {
+        List<String> result = new ArrayList<>();
+        for (String s : list) {
+            if (s.toLowerCase().startsWith(prefix.toLowerCase())) {
+                result.add(s);
+            }
+        }
+        return result;
+    }
+
     private void sendHelp(Player player) {
         player.sendMessage(ChatColor.YELLOW + "══ 블럭 숨바꼭질 명령어 ══");
         if (player.isOp()) {
-            player.sendMessage(ChatColor.GOLD + "/bhs start|stop" + ChatColor.WHITE + " - 게임 시작/종료");
-            player.sendMessage(ChatColor.GOLD + "/bhs setlobby|sethider|setseeker" + ChatColor.WHITE + " - 스폰 설정");
-            player.sendMessage(ChatColor.GOLD + "/bhs setkit [hider|seeker]" + ChatColor.WHITE + " - 키트 설정 GUI");
-            player.sendMessage(ChatColor.GOLD + "/bhs reload" + ChatColor.WHITE + " - 설정 리로드");
+            sendClickableCommand(player, "/bhs start", "게임 시작");
+            sendClickableCommand(player, "/bhs stop", "게임 종료");
+            sendClickableCommand(player, "/bhs setlobby", "로비 스폰 설정");
+            sendClickableCommand(player, "/bhs sethider", "도망자 스폰 설정");
+            sendClickableCommand(player, "/bhs setseeker", "술래 스폰 설정");
+            sendClickableCommand(player, "/bhs setkit hider", "도망자 키트 설정 GUI");
+            sendClickableCommand(player, "/bhs setkit seeker", "술래 키트 설정 GUI");
+            sendClickableCommand(player, "/bhs mode 1", "모드 1로 변경");
+            sendClickableCommand(player, "/bhs mode 2", "모드 2로 변경");
+            sendClickableCommand(player, "/bhs reload", "설정 리로드");
         }
-        player.sendMessage(ChatColor.GREEN + "/bhs hint" + ChatColor.WHITE + " - 힌트 사용 (술래 전용)");
+        sendClickableCommand(player, "/bhs hint", "힌트 사용 (술래 전용)");
+    }
+
+    private void sendClickableCommand(Player player, String command, String description) {
+        TextComponent cmdComponent = new TextComponent(command);
+        cmdComponent.setColor(net.md_5.bungee.api.ChatColor.GOLD);
+        cmdComponent.setClickEvent(new ClickEvent(ClickEvent.Action.SUGGEST_COMMAND, command));
+        cmdComponent.setHoverEvent(new HoverEvent(HoverEvent.Action.SHOW_TEXT, new Text("클릭하여 명령어 입력")));
+
+        TextComponent descComponent = new TextComponent(" - " + description);
+        descComponent.setColor(net.md_5.bungee.api.ChatColor.WHITE);
+
+        cmdComponent.addExtra(descComponent);
+        player.spigot().sendMessage(cmdComponent);
     }
 
     private void noPermission(Player player) {
