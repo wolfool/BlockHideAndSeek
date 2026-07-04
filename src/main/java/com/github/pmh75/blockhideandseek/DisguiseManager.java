@@ -155,9 +155,11 @@ public class DisguiseManager {
             // 고정 해제
             info.isSolidified = false;
             if (gameMode == 1) {
-                // 모드 1: 블럭 숨기고 본체 표시 및 히트박스 제거
+                // 모드 1: 블럭 숨기고 본체 표시 및 히트박스/헬멧 제거
                 info.display.setVisibleByDefault(false);
                 Bukkit.getOnlinePlayers().forEach(op -> op.hideEntity(plugin, info.display));
+                
+                player.getEquipment().setHelmet(info.originalHelmet);
                 showPlayerToAll(player);
                 
                 if (info.hitbox != null) {
@@ -181,6 +183,9 @@ public class DisguiseManager {
 
             // 블럭 종류 업데이트
             info.display.setBlock(Bukkit.createBlockData(blockBelow.getType()));
+
+            // 숨은 사람 본인만 볼 수 있도록 머리에 헬멧 착용 (본체를 남들에게 숨길 것이므로 남들은 못 봄)
+            player.getEquipment().setHelmet(new org.bukkit.inventory.ItemStack(blockBelow.getType()));
 
             // 블럭 표시 + 고정 + 본체(갑옷 등) 숨기기
             info.isSolidified = true;
