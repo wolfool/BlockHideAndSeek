@@ -48,13 +48,14 @@ public class DisguiseManager {
             // 모드 1: 쉬프트 안 누를 때는 본체 보임, 블럭 숨김
             display.setVisibleByDefault(false);
             showPlayerToAll(player);
-            player.setInvisible(false);
         } else {
             // 모드 2: 항상 블럭 상태, 본체 숨김(갑옷/아이템 포함)
             display.setVisibleByDefault(true);
             hidePlayerFromAll(player);
-            player.setInvisible(true);
         }
+
+        // 도망자 본인에게는 블럭 디스플레이(가짜 블럭)가 안 보이게 처리
+        player.hideEntity(plugin, display);
 
         org.bukkit.inventory.ItemStack originalHelmet = player.getEquipment().getHelmet();
         player.getEquipment().setHelmet(new org.bukkit.inventory.ItemStack(material));
@@ -86,7 +87,6 @@ public class DisguiseManager {
             player.getEquipment().setHelmet(info.originalHelmet);
         }
         showPlayerToAll(player);
-        player.setInvisible(false);
     }
 
     public boolean isDisguised(Player player) {
@@ -135,7 +135,6 @@ public class DisguiseManager {
                 info.display.setVisibleByDefault(false);
                 Bukkit.getOnlinePlayers().forEach(op -> op.hideEntity(plugin, info.display));
                 showPlayerToAll(player);
-                player.setInvisible(false);
             }
             if (info.hitbox != null) {
                 info.hitbox.remove();
@@ -159,9 +158,12 @@ public class DisguiseManager {
             info.isSolidified = true;
             info.display.setTeleportDuration(0);
             info.display.setVisibleByDefault(true);
-            Bukkit.getOnlinePlayers().forEach(op -> op.showEntity(plugin, info.display));
+            Bukkit.getOnlinePlayers().forEach(op -> {
+                if (!op.equals(player)) {
+                    op.showEntity(plugin, info.display);
+                }
+            });
             hidePlayerFromAll(player);
-            player.setInvisible(true);
 
             // 즉시 발 아래 블럭 위치로 이동
             Location snapLoc = new Location(
@@ -252,7 +254,6 @@ public class DisguiseManager {
                             info.display.setVisibleByDefault(false);
                             Bukkit.getOnlinePlayers().forEach(op -> op.hideEntity(plugin, info.display));
                             showPlayerToAll(p);
-                            p.setInvisible(false);
                             if (info.hitbox != null) {
                                 info.hitbox.remove();
                                 info.hitbox = null;
