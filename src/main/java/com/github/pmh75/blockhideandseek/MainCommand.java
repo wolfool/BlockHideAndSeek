@@ -42,36 +42,54 @@ public class MainCommand implements CommandExecutor, TabCompleter {
             // ── 관리자 명령어 ──────────────────────────────────
 
             case "start" -> {
-                if (!player.isOp()) { noPermission(player); return true; }
+                if (!player.isOp()) {
+                    noPermission(player);
+                    return true;
+                }
                 plugin.getGameManager().startGame();
             }
 
             case "stop" -> {
-                if (!player.isOp()) { noPermission(player); return true; }
+                if (!player.isOp()) {
+                    noPermission(player);
+                    return true;
+                }
                 plugin.getGameManager().endGame(false);
                 player.sendMessage(ChatColor.YELLOW + "게임을 강제 종료했습니다.");
             }
 
             case "setlobby" -> {
-                if (!player.isOp()) { noPermission(player); return true; }
+                if (!player.isOp()) {
+                    noPermission(player);
+                    return true;
+                }
                 plugin.getGameManager().setLobbySpawn(player.getLocation());
                 player.sendMessage(ChatColor.GREEN + "로비 스폰을 현재 위치로 설정했습니다.");
             }
 
             case "sethider" -> {
-                if (!player.isOp()) { noPermission(player); return true; }
+                if (!player.isOp()) {
+                    noPermission(player);
+                    return true;
+                }
                 plugin.getGameManager().setHiderSpawn(player.getLocation());
                 player.sendMessage(ChatColor.GREEN + "도망자 스폰을 현재 위치로 설정했습니다.");
             }
 
             case "setseeker" -> {
-                if (!player.isOp()) { noPermission(player); return true; }
+                if (!player.isOp()) {
+                    noPermission(player);
+                    return true;
+                }
                 plugin.getGameManager().setSeekerSpawn(player.getLocation());
                 player.sendMessage(ChatColor.GREEN + "술래 스폰을 현재 위치로 설정했습니다.");
             }
 
             case "setkit" -> {
-                if (!player.isOp()) { noPermission(player); return true; }
+                if (!player.isOp()) {
+                    noPermission(player);
+                    return true;
+                }
                 if (args.length < 2) {
                     player.sendMessage(ChatColor.RED + "사용법: /bhs setkit [hider|seeker]");
                     return true;
@@ -80,7 +98,10 @@ public class MainCommand implements CommandExecutor, TabCompleter {
             }
 
             case "mode" -> {
-                if (!player.isOp()) { noPermission(player); return true; }
+                if (!player.isOp()) {
+                    noPermission(player);
+                    return true;
+                }
                 if (args.length < 2 || (!args[1].equals("1") && !args[1].equals("2"))) {
                     player.sendMessage(ChatColor.RED + "사용법: /bhs mode [1|2]");
                     player.sendMessage(ChatColor.GRAY + "  1 = 쉬프트 시 발 아래 블럭 고정");
@@ -93,7 +114,10 @@ public class MainCommand implements CommandExecutor, TabCompleter {
             }
 
             case "reload" -> {
-                if (!player.isOp()) { noPermission(player); return true; }
+                if (!player.isOp()) {
+                    noPermission(player);
+                    return true;
+                }
                 plugin.reloadConfig();
                 player.sendMessage(ChatColor.GREEN + "config.yml 을 리로드했습니다.");
             }

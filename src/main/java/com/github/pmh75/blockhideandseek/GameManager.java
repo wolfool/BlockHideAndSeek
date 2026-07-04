@@ -75,7 +75,23 @@ public class GameManager {
             return;
         }
 
-        // 술래 뽑기 (1명 or 설정 기반)
+        assignRoles(online);
+        hintsLeft = plugin.getConfig().getInt("hints.max-usages", 3);
+
+        // 모든 플레이어 보스바에 추가
+        bossBar.removeAll();
+        for (Player p : online) {
+            bossBar.addPlayer(p);
+        }
+
+        int gameMode = plugin.getConfig().getInt("game-mode", 2);
+        setupSeekers();
+        setupHiders();
+        startBlockSelection(gameMode);
+        startHidePhase();
+    }
+
+    private void assignRoles(List<Player> online) {
         int seekerCount = Math.max(1, online.size() / 4);
         Collections.shuffle(online);
 
@@ -89,18 +105,9 @@ public class GameManager {
                 hiders.add(online.get(i).getUniqueId());
             }
         }
+    }
 
-        hintsLeft = plugin.getConfig().getInt("hints.max-usages", 3);
-
-        // 모든 플레이어 보스바에 추가
-        bossBar.removeAll();
-        for (Player p : online) {
-            bossBar.addPlayer(p);
-        }
-
-        int gameMode = plugin.getConfig().getInt("game-mode", 2);
-
-        // 역할 안내 및 스폰 이동
+    private void setupSeekers() {
         for (UUID uid : seekers) {
             Player p = Bukkit.getPlayer(uid);
             if (p == null) continue;
@@ -112,7 +119,9 @@ public class GameManager {
                     org.bukkit.potion.PotionEffectType.BLINDNESS, 20 * 5, 1, false, false));
             plugin.getKitManager().giveKit(p, "seeker");
         }
+    }
 
+    private void setupHiders() {
         for (UUID uid : hiders) {
             Player p = Bukkit.getPlayer(uid);
             if (p == null) continue;
@@ -122,8 +131,9 @@ public class GameManager {
             p.setGameMode(GameMode.ADVENTURE);
             plugin.getKitManager().giveKit(p, "hider");
         }
+    }
 
-        // 모드별 블럭 선택
+    private void startBlockSelection(int gameMode) {
         Bukkit.getScheduler().runTaskLater(plugin, () -> {
             for (UUID uid : hiders) {
                 Player p = Bukkit.getPlayer(uid);
@@ -135,8 +145,6 @@ public class GameManager {
                 }
             }
         }, 20L);
-
-        startHidePhase();
     }
 
     // ─────────────────────────────────────────────
