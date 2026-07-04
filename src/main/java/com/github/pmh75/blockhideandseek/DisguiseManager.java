@@ -48,10 +48,12 @@ public class DisguiseManager {
             // 모드 1: 쉬프트 안 누를 때는 본체 보임, 블럭 숨김
             display.setVisibleByDefault(false);
             showPlayerToAll(player);
+            player.setInvisible(false);
         } else {
             // 모드 2: 항상 블럭 상태, 본체 숨김(갑옷/아이템 포함)
             display.setVisibleByDefault(true);
             hidePlayerFromAll(player);
+            player.setInvisible(true);
         }
 
         disguises.put(player.getUniqueId(), new DisguiseInfo(display, material));
@@ -80,6 +82,7 @@ public class DisguiseManager {
             if (info.hitbox != null) info.hitbox.remove();
         }
         showPlayerToAll(player);
+        player.setInvisible(false);
     }
 
     public boolean isDisguised(Player player) {
@@ -128,6 +131,7 @@ public class DisguiseManager {
                 info.display.setVisibleByDefault(false);
                 Bukkit.getOnlinePlayers().forEach(op -> op.hideEntity(plugin, info.display));
                 showPlayerToAll(player);
+                player.setInvisible(false);
             }
             if (info.hitbox != null) {
                 info.hitbox.remove();
@@ -153,6 +157,7 @@ public class DisguiseManager {
             info.display.setVisibleByDefault(true);
             Bukkit.getOnlinePlayers().forEach(op -> op.showEntity(plugin, info.display));
             hidePlayerFromAll(player);
+            player.setInvisible(true);
 
             // 즉시 발 아래 블럭 위치로 이동
             Location snapLoc = new Location(
@@ -201,6 +206,7 @@ public class DisguiseManager {
         disguises.clear();
         for (Player p : Bukkit.getOnlinePlayers()) {
             showPlayerToAll(p);
+            p.setInvisible(false);
         }
     }
 
@@ -239,6 +245,7 @@ public class DisguiseManager {
                             info.display.setVisibleByDefault(false);
                             Bukkit.getOnlinePlayers().forEach(op -> op.hideEntity(plugin, info.display));
                             showPlayerToAll(p);
+                            p.setInvisible(false);
                             if (info.hitbox != null) {
                                 info.hitbox.remove();
                                 info.hitbox = null;
