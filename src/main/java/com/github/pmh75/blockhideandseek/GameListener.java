@@ -146,6 +146,14 @@ public class GameListener implements Listener {
     }
 
     @EventHandler
+    public void onFoodLevelChange(org.bukkit.event.entity.FoodLevelChangeEvent event) {
+        GameManager.GameState state = plugin.getGameManager().getState();
+        if (state == GameManager.GameState.HIDING || state == GameManager.GameState.SEEKING) {
+            event.setFoodLevel(19);
+        }
+    }
+
+    @EventHandler
     public void onInventoryDrag(org.bukkit.event.inventory.InventoryDragEvent event) {
         if (!(event.getWhoClicked() instanceof Player player)) return;
         if (plugin.getDisguiseManager().isDisguised(player)) {

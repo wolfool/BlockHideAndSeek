@@ -115,6 +115,7 @@ public class GameManager {
             p.sendMessage(ChatColor.RED + "당신은 술래입니다!");
             if (seekerSpawn != null) p.teleport(seekerSpawn);
             p.setGameMode(GameMode.ADVENTURE);
+            p.setFoodLevel(19);
             p.addPotionEffect(new org.bukkit.potion.PotionEffect(
                     org.bukkit.potion.PotionEffectType.BLINDNESS, 20 * 5, 1, false, false));
             plugin.getKitManager().giveKit(p, "seeker");
@@ -129,6 +130,7 @@ public class GameManager {
             p.sendMessage(ChatColor.GREEN + "당신은 도망자입니다!");
             if (hiderSpawn != null) p.teleport(hiderSpawn);
             p.setGameMode(GameMode.ADVENTURE);
+            p.setFoodLevel(19);
             plugin.getKitManager().giveKit(p, "hider");
         }
     }

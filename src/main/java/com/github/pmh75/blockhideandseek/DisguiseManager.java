@@ -65,7 +65,9 @@ public class DisguiseManager {
         player.hideEntity(plugin, display);
 
         org.bukkit.inventory.ItemStack originalHelmet = player.getEquipment().getHelmet();
-        player.getEquipment().setHelmet(new org.bukkit.inventory.ItemStack(material));
+        if (gameMode == 2) {
+            player.getEquipment().setHelmet(new org.bukkit.inventory.ItemStack(material));
+        }
 
         disguises.put(player.getUniqueId(), new DisguiseInfo(display, material, originalHelmet));
     }
@@ -173,6 +175,9 @@ public class DisguiseManager {
             if (blockBelow.getType().isAir() || !blockBelow.getType().isSolid()) {
                 return false;
             }
+
+            // 블럭 종류 업데이트
+            info.display.setBlock(Bukkit.createBlockData(blockBelow.getType()));
 
             // 블럭 표시 + 고정 + 본체(갑옷 등) 숨기기
             info.isSolidified = true;
