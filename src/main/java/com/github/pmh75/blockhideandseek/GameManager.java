@@ -303,7 +303,7 @@ public class GameManager {
             Player hider = Bukkit.getPlayer(uid);
             if (hider == null || hider.getGameMode() == GameMode.SPECTATOR) continue;
 
-            Location loc = hider.getLocation().add(0, 2, 0);
+            Location loc = hider.getLocation().add(0, 5, 0);
             org.bukkit.entity.Firework fw = hider.getWorld().spawn(loc, org.bukkit.entity.Firework.class);
             org.bukkit.FireworkEffect effect = org.bukkit.FireworkEffect.builder()
                     .with(org.bukkit.FireworkEffect.Type.BURST)

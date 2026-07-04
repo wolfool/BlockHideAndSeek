@@ -175,9 +175,9 @@ public class DisguiseManager {
         if (gameMode == 1) {
             // 모드 1: 발 아래 블럭에 고정
             Location pLoc = player.getLocation();
-            Block blockBelow = pLoc.getWorld().getBlockAt(pLoc.getBlockX(), pLoc.getBlockY() - 1, pLoc.getBlockZ());
+            Block blockBelow = pLoc.clone().subtract(0, 0.1, 0).getBlock();
 
-            if (blockBelow.getType().isAir() || !blockBelow.getType().isSolid()) {
+            if (blockBelow.getType().isAir() || !blockBelow.getType().isSolid() || blockBelow.getBoundingBox().getVolume() < 1.0) {
                 return false;
             }
 
@@ -281,10 +281,9 @@ public class DisguiseManager {
                         }
                     } else if (gameMode == 1) {
                         // 모드 1: 쉬프트 중 - 발 아래 블럭 위에 고정
-                        Block blockBelow = pLoc.getWorld().getBlockAt(
-                                pLoc.getBlockX(), pLoc.getBlockY() - 1, pLoc.getBlockZ());
+                        Block blockBelow = pLoc.clone().subtract(0, 0.1, 0).getBlock();
 
-                        if (blockBelow.getType().isAir() || !blockBelow.getType().isSolid()) {
+                        if (blockBelow.getType().isAir() || !blockBelow.getType().isSolid() || blockBelow.getBoundingBox().getVolume() < 1.0) {
                             // 발 아래 없어지면 고정 해제 + 블럭 숨기기
                             info.isSolidified = false;
                             info.display.setVisibleByDefault(false);
