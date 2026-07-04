@@ -303,21 +303,18 @@ public class GameManager {
             Player hider = Bukkit.getPlayer(uid);
             if (hider == null || hider.getGameMode() == GameMode.SPECTATOR) continue;
 
-            Location loc = hider.getLocation().add(0, 5, 0);
+            Location loc = hider.getLocation().add(0, 1, 0);
             org.bukkit.entity.Firework fw = hider.getWorld().spawn(loc, org.bukkit.entity.Firework.class);
+            org.bukkit.inventory.meta.FireworkMeta meta = fw.getFireworkMeta();
             org.bukkit.FireworkEffect effect = org.bukkit.FireworkEffect.builder()
                     .with(org.bukkit.FireworkEffect.Type.BURST)
                     .withColor(org.bukkit.Color.RED)
                     .withFade(org.bukkit.Color.ORANGE)
                     .trail(true)
                     .build();
-            fw.getFireworkMeta().addEffect(effect);
-            org.bukkit.inventory.meta.FireworkMeta meta = fw.getFireworkMeta();
             meta.addEffect(effect);
-            meta.setPower(0);
+            meta.setPower(1);
             fw.setFireworkMeta(meta);
-            // 즉시 터뜨리기
-            fw.detonate();
         }
     }
 
