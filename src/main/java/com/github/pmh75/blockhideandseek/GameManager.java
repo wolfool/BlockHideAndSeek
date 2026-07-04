@@ -245,8 +245,12 @@ public class GameManager {
         seekers.clear();
         bossBar.removeAll();
 
-        // 3초 후 WAITING으로 리셋
-        Bukkit.getScheduler().runTaskLater(plugin, () -> state = GameState.WAITING, 60L);
+        // 3초 후 WAITING으로 리셋 (플러그인 비활성화 중이면 즉시 처리)
+        if (plugin.isEnabled()) {
+            Bukkit.getScheduler().runTaskLater(plugin, () -> state = GameState.WAITING, 60L);
+        } else {
+            state = GameState.WAITING;
+        }
     }
 
     // ─────────────────────────────────────────────
