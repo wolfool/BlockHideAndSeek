@@ -11,6 +11,8 @@ import org.bukkit.event.block.BlockPlaceEvent;
 import org.bukkit.event.entity.EntityDamageByEntityEvent;
 import org.bukkit.event.entity.EntityDamageEvent;
 import org.bukkit.event.entity.PlayerDeathEvent;
+import org.bukkit.event.inventory.InventoryClickEvent;
+import org.bukkit.event.inventory.InventoryType;
 import org.bukkit.event.player.PlayerDropItemEvent;
 import org.bukkit.event.player.PlayerQuitEvent;
 import org.bukkit.event.player.PlayerToggleSneakEvent;
@@ -110,7 +112,7 @@ public class GameListener implements Listener {
     }
 
     // ─────────────────────────────────────────────
-    //  아이템 드롭 방지
+    //  아이템 드롭 및 인벤토리 헬멧 클릭 방지
     // ─────────────────────────────────────────────
 
     @EventHandler
@@ -118,6 +120,16 @@ public class GameListener implements Listener {
         GameManager.GameState state = plugin.getGameManager().getState();
         if (state == GameManager.GameState.HIDING || state == GameManager.GameState.SEEKING) {
             event.setCancelled(true);
+        }
+    }
+
+    @EventHandler
+    public void onInventoryClick(InventoryClickEvent event) {
+        if (!(event.getWhoClicked() instanceof Player player)) return;
+        if (plugin.getDisguiseManager().isDisguised(player)) {
+            if (event.getSlotType() == InventoryType.SlotType.ARMOR) {
+                event.setCancelled(true);
+            }
         }
     }
 

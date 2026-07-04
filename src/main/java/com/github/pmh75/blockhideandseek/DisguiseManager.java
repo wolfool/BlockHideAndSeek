@@ -56,7 +56,10 @@ public class DisguiseManager {
             player.setInvisible(true);
         }
 
-        disguises.put(player.getUniqueId(), new DisguiseInfo(display, material));
+        org.bukkit.inventory.ItemStack originalHelmet = player.getEquipment().getHelmet();
+        player.getEquipment().setHelmet(new org.bukkit.inventory.ItemStack(material));
+
+        disguises.put(player.getUniqueId(), new DisguiseInfo(display, material, originalHelmet));
     }
 
     private void hidePlayerFromAll(Player player) {
@@ -80,6 +83,7 @@ public class DisguiseManager {
         if (info != null) {
             info.display.remove();
             if (info.hitbox != null) info.hitbox.remove();
+            player.getEquipment().setHelmet(info.originalHelmet);
         }
         showPlayerToAll(player);
         player.setInvisible(false);
@@ -199,9 +203,12 @@ public class DisguiseManager {
     }
 
     public void cleanupAll() {
-        for (DisguiseInfo info : disguises.values()) {
+        for (Map.Entry<UUID, DisguiseInfo> entry : disguises.entrySet()) {
+            DisguiseInfo info = entry.getValue();
             info.display.remove();
             if (info.hitbox != null) info.hitbox.remove();
+            Player p = Bukkit.getPlayer(entry.getKey());
+            if (p != null) p.getEquipment().setHelmet(info.originalHelmet);
         }
         disguises.clear();
         for (Player p : Bukkit.getOnlinePlayers()) {
@@ -287,10 +294,12 @@ public class DisguiseManager {
         Material material;
         boolean isSolidified = false;
         org.bukkit.entity.Shulker hitbox;
+        org.bukkit.inventory.ItemStack originalHelmet;
 
-        DisguiseInfo(BlockDisplay display, Material material) {
+        DisguiseInfo(BlockDisplay display, Material material, org.bukkit.inventory.ItemStack originalHelmet) {
             this.display = display;
             this.material = material;
+            this.originalHelmet = originalHelmet;
         }
     }
 }
