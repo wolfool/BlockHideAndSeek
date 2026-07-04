@@ -127,7 +127,13 @@ public class GameListener implements Listener {
     public void onInventoryClick(InventoryClickEvent event) {
         if (!(event.getWhoClicked() instanceof Player player)) return;
         if (plugin.getDisguiseManager().isDisguised(player)) {
-            if (event.getSlotType() == InventoryType.SlotType.ARMOR) {
+            // 헬멧 슬롯(갑옷) 클릭 및 숫자키 스왑, 버리기 등 방지
+            if (event.getSlotType() == InventoryType.SlotType.ARMOR || event.getRawSlot() == 5) {
+                event.setCancelled(true);
+                return;
+            }
+            // 쉬프트 클릭을 통해 아이템이 헬멧 칸으로 들어가는 것 방지
+            if (event.isShiftClick()) {
                 event.setCancelled(true);
             }
         }
