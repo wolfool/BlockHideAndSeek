@@ -43,18 +43,25 @@ public class DisguiseManager {
         display.setShadowRadius(0f);
         display.setShadowStrength(0f);
 
+        // 항상 기본적으로 안 보이게 설정 (오직 남들에게만 수동으로 보여줌)
+        display.setVisibleByDefault(false);
+
         int gameMode = plugin.getConfig().getInt("game-mode", 2);
         if (gameMode == 1) {
-            // 모드 1: 쉬프트 안 누를 때는 본체 보임, 블럭 숨김
-            display.setVisibleByDefault(false);
+            // 모드 1: 쉬프트 안 누를 때는 본체 보임, 블럭 숨김 (위에서 false로 했으니 블럭은 안 보임)
             showPlayerToAll(player);
         } else {
-            // 모드 2: 항상 블럭 상태, 본체 숨김(갑옷/아이템 포함)
-            display.setVisibleByDefault(true);
+            // 모드 2: 항상 블럭 상태, 본체 숨김
             hidePlayerFromAll(player);
+            // 남들에게만 블럭 보이게 처리
+            Bukkit.getOnlinePlayers().forEach(op -> {
+                if (!op.equals(player)) {
+                    op.showEntity(plugin, display);
+                }
+            });
         }
 
-        // 도망자 본인에게는 블럭 디스플레이(가짜 블럭)가 안 보이게 처리
+        // 혹시 모를 대비로 본인에게 강제 숨김 처리 한 번 더
         player.hideEntity(plugin, display);
 
         org.bukkit.inventory.ItemStack originalHelmet = player.getEquipment().getHelmet();
@@ -113,6 +120,19 @@ public class DisguiseManager {
         return null;
     }
 
+    public void refreshVisibilityFor(Player viewer) {
+        int gameMode = plugin.getConfig().getInt("game-mode", 2);
+        for (Map.Entry<UUID, DisguiseInfo> entry : disguises.entrySet()) {
+            Player owner = Bukkit.getPlayer(entry.getKey());
+            if (owner == null || owner.equals(viewer)) continue;
+            
+            DisguiseInfo info = entry.getValue();
+            if (info.isSolidified || gameMode == 2) {
+                viewer.showEntity(plugin, info.display);
+            }
+        }
+    }
+
     // ─────────────────────────────────────────────
     //  쉬프트 고정 처리
     // ─────────────────────────────────────────────
@@ -157,7 +177,7 @@ public class DisguiseManager {
             // 블럭 표시 + 고정 + 본체(갑옷 등) 숨기기
             info.isSolidified = true;
             info.display.setTeleportDuration(0);
-            info.display.setVisibleByDefault(true);
+            info.display.setVisibleByDefault(false);
             Bukkit.getOnlinePlayers().forEach(op -> {
                 if (!op.equals(player)) {
                     op.showEntity(plugin, info.display);
