@@ -40,6 +40,8 @@ public class DisguiseManager {
         transform.getTranslation().set(-0.5f, 0f, -0.5f);
         display.setTransformation(transform);
         display.setTeleportDuration(1);
+        display.setShadowRadius(0f);
+        display.setShadowStrength(0f);
 
         int gameMode = plugin.getConfig().getInt("game-mode", 2);
         if (gameMode == 1) {
