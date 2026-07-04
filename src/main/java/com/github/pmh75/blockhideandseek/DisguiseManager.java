@@ -43,15 +43,32 @@ public class DisguiseManager {
 
         int gameMode = plugin.getConfig().getInt("game-mode", 2);
         if (gameMode == 1) {
-            // 모드 1: 쉬프트 누를 때만 블럭 보임, 평소에는 숨김
+            // 모드 1: 쉬프트 안 누를 때는 본체 보임, 블럭 숨김
             display.setVisibleByDefault(false);
-            player.setInvisible(true);
+            showPlayerToAll(player);
         } else {
-            // 모드 2: 항상 블럭이 따라다님
-            player.setInvisible(true);
+            // 모드 2: 항상 블럭 상태, 본체 숨김(갑옷/아이템 포함)
+            display.setVisibleByDefault(true);
+            hidePlayerFromAll(player);
         }
 
         disguises.put(player.getUniqueId(), new DisguiseInfo(display, material));
+    }
+
+    private void hidePlayerFromAll(Player player) {
+        for (Player op : Bukkit.getOnlinePlayers()) {
+            if (!op.equals(player)) {
+                op.hidePlayer(plugin, player);
+            }
+        }
+    }
+
+    private void showPlayerToAll(Player player) {
+        for (Player op : Bukkit.getOnlinePlayers()) {
+            if (!op.equals(player)) {
+                op.showPlayer(plugin, player);
+            }
+        }
     }
 
     public void undisguise(Player player) {
@@ -60,7 +77,7 @@ public class DisguiseManager {
             info.display.remove();
             if (info.hitbox != null) info.hitbox.remove();
         }
-        player.setInvisible(false);
+        showPlayerToAll(player);
     }
 
     public boolean isDisguised(Player player) {
@@ -105,9 +122,10 @@ public class DisguiseManager {
             // 고정 해제
             info.isSolidified = false;
             if (gameMode == 1) {
-                // 모드 1: 블럭 숨기기
+                // 모드 1: 블럭 숨기고 본체 표시
                 info.display.setVisibleByDefault(false);
                 Bukkit.getOnlinePlayers().forEach(op -> op.hideEntity(plugin, info.display));
+                showPlayerToAll(player);
             }
             if (info.hitbox != null) {
                 info.hitbox.remove();
@@ -127,11 +145,12 @@ public class DisguiseManager {
                 return false;
             }
 
-            // 블럭 표시 + 고정
+            // 블럭 표시 + 고정 + 본체(갑옷 등) 숨기기
             info.isSolidified = true;
             info.display.setTeleportDuration(0);
             info.display.setVisibleByDefault(true);
             Bukkit.getOnlinePlayers().forEach(op -> op.showEntity(plugin, info.display));
+            hidePlayerFromAll(player);
 
             // 즉시 발 아래 블럭 위치로 이동
             Location snapLoc = new Location(
@@ -179,7 +198,7 @@ public class DisguiseManager {
         }
         disguises.clear();
         for (Player p : Bukkit.getOnlinePlayers()) {
-            p.setInvisible(false);
+            showPlayerToAll(p);
         }
     }
 
@@ -217,6 +236,7 @@ public class DisguiseManager {
                             info.isSolidified = false;
                             info.display.setVisibleByDefault(false);
                             Bukkit.getOnlinePlayers().forEach(op -> op.hideEntity(plugin, info.display));
+                            showPlayerToAll(p);
                             if (info.hitbox != null) {
                                 info.hitbox.remove();
                                 info.hitbox = null;
