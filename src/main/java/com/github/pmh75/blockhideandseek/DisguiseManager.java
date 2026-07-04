@@ -284,10 +284,11 @@ public class DisguiseManager {
                         Block blockBelow = pLoc.clone().subtract(0, 0.1, 0).getBlock();
 
                         if (blockBelow.getType().isAir() || !blockBelow.getType().isSolid() || blockBelow.getBoundingBox().getVolume() < 1.0) {
-                            // 발 아래 없어지면 고정 해제 + 블럭 숨기기
+                            // 발 아래 없어지면 고정 해제 + 블럭 숨기기 + 헬멧 제거
                             info.isSolidified = false;
                             info.display.setVisibleByDefault(false);
                             Bukkit.getOnlinePlayers().forEach(op -> op.hideEntity(plugin, info.display));
+                            p.getEquipment().setHelmet(info.originalHelmet);
                             showPlayerToAll(p);
                             if (info.hitbox != null) {
                                 info.hitbox.remove();
