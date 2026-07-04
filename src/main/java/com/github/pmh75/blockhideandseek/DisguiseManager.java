@@ -155,17 +155,7 @@ public class DisguiseManager {
             // 고정 해제
             info.isSolidified = false;
             if (gameMode == 1) {
-                // 모드 1: 블럭 숨기고 본체 표시 및 히트박스/헬멧 제거
-                info.display.setVisibleByDefault(false);
-                Bukkit.getOnlinePlayers().forEach(op -> op.hideEntity(plugin, info.display));
-                
-                player.getEquipment().setHelmet(info.originalHelmet);
-                showPlayerToAll(player);
-                
-                if (info.hitbox != null) {
-                    info.hitbox.remove();
-                    info.hitbox = null;
-                }
+                unsolidifyMode1(player, info);
             }
             info.display.setTeleportDuration(1);
             return true;
@@ -181,32 +171,7 @@ public class DisguiseManager {
                 return false;
             }
 
-            // 블럭 종류 업데이트
-            info.display.setBlock(Bukkit.createBlockData(blockBelow.getType()));
-
-            // 숨은 사람 본인만 볼 수 있도록 머리에 헬멧 착용 (본체를 남들에게 숨길 것이므로 남들은 못 봄)
-            player.getEquipment().setHelmet(new org.bukkit.inventory.ItemStack(blockBelow.getType()));
-
-            // 블럭 표시 + 고정 + 본체(갑옷 등) 숨기기
-            info.isSolidified = true;
-            info.display.setTeleportDuration(0);
-            info.display.setVisibleByDefault(false);
-            Bukkit.getOnlinePlayers().forEach(op -> {
-                if (!op.equals(player)) {
-                    op.showEntity(plugin, info.display);
-                }
-            });
-            hidePlayerFromAll(player);
-
-            // 즉시 발 아래 블럭 위치로 이동
-            Location snapLoc = new Location(
-                    pLoc.getWorld(),
-                    pLoc.getBlockX() + 0.5,
-                    blockBelow.getY() + 1.0,
-                    pLoc.getBlockZ() + 0.5
-            );
-            info.display.teleport(snapLoc);
-            createHitbox(player, info, snapLoc);
+            solidifyMode1(player, info, pLoc, blockBelow);
         } else {
             // 모드 2: 현재 위치 격자에 고정
             info.isSolidified = true;
@@ -253,6 +218,47 @@ public class DisguiseManager {
     }
 
     // ─────────────────────────────────────────────
+    //  모드 1 변신/해제 헬퍼
+    // ─────────────────────────────────────────────
+
+    private void solidifyMode1(Player player, DisguiseInfo info, Location pLoc, Block blockBelow) {
+        info.display.setBlock(Bukkit.createBlockData(blockBelow.getType()));
+        info.material = blockBelow.getType();
+        player.getEquipment().setHelmet(new org.bukkit.inventory.ItemStack(blockBelow.getType()));
+
+        info.isSolidified = true;
+        info.display.setTeleportDuration(0);
+        info.display.setVisibleByDefault(false);
+        Bukkit.getOnlinePlayers().forEach(op -> {
+            if (!op.equals(player)) {
+                op.showEntity(plugin, info.display);
+            }
+        });
+        hidePlayerFromAll(player);
+
+        Location snapLoc = new Location(
+                pLoc.getWorld(),
+                pLoc.getBlockX() + 0.5,
+                blockBelow.getY() + 1.0,
+                pLoc.getBlockZ() + 0.5
+        );
+        info.display.teleport(snapLoc);
+        createHitbox(player, info, snapLoc);
+    }
+
+    private void unsolidifyMode1(Player player, DisguiseInfo info) {
+        info.isSolidified = false;
+        info.display.setVisibleByDefault(false);
+        Bukkit.getOnlinePlayers().forEach(op -> op.hideEntity(plugin, info.display));
+        player.getEquipment().setHelmet(info.originalHelmet);
+        showPlayerToAll(player);
+        if (info.hitbox != null) {
+            info.hitbox.remove();
+            info.hitbox = null;
+        }
+    }
+
+    // ─────────────────────────────────────────────
     //  매 틱 위치 업데이트
     // ─────────────────────────────────────────────
 
@@ -271,7 +277,14 @@ public class DisguiseManager {
 
                     if (!info.isSolidified) {
                         if (gameMode == 1) {
-                            // 모드 1: 쉬프트 안 누르면 블럭 안 보임 (아무것도 안 함)
+                            // 모드 1: 쉬프트 누르고 있는 동안 매 틱 발 아래 블럭 확인
+                            if (p.isSneaking()) {
+                                Block blockBelow = pLoc.clone().subtract(0, 0.1, 0).getBlock();
+                                if (!blockBelow.getType().isAir() && blockBelow.getType().isSolid() && blockBelow.getBoundingBox().getVolume() >= 1.0) {
+                                    // 유효한 블럭 → 변신!
+                                    solidifyMode1(p, info, pLoc, blockBelow);
+                                }
+                            }
                         } else {
                             // 모드 2: 부드럽게 따라다님
                             info.display.teleport(pLoc);
@@ -284,19 +297,17 @@ public class DisguiseManager {
                         Block blockBelow = pLoc.clone().subtract(0, 0.1, 0).getBlock();
 
                         if (blockBelow.getType().isAir() || !blockBelow.getType().isSolid() || blockBelow.getBoundingBox().getVolume() < 1.0) {
-                            // 발 아래 없어지면 고정 해제 + 블럭 숨기기 + 헬멧 제거
-                            info.isSolidified = false;
-                            info.display.setVisibleByDefault(false);
-                            Bukkit.getOnlinePlayers().forEach(op -> op.hideEntity(plugin, info.display));
-                            p.getEquipment().setHelmet(info.originalHelmet);
-                            showPlayerToAll(p);
-                            if (info.hitbox != null) {
-                                info.hitbox.remove();
-                                info.hitbox = null;
-                            }
+                            // 발 아래가 유효하지 않으면 고정 해제 (쉬프트는 유지 중)
+                            unsolidifyMode1(p, info);
                             p.sendActionBar(net.kyori.adventure.text.Component.text(
                                     "§c⚠ 발 아래 블럭이 없어 고정이 풀렸습니다!"));
                         } else {
+                            // 블럭 종류가 바뀌었으면 업데이트
+                            if (blockBelow.getType() != info.material) {
+                                info.display.setBlock(Bukkit.createBlockData(blockBelow.getType()));
+                                info.material = blockBelow.getType();
+                                p.getEquipment().setHelmet(new org.bukkit.inventory.ItemStack(blockBelow.getType()));
+                            }
                             Location snapLoc = new Location(
                                     pLoc.getWorld(),
                                     pLoc.getBlockX() + 0.5,
