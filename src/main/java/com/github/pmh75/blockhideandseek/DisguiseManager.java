@@ -56,7 +56,10 @@ public class DisguiseManager {
 
     public void undisguise(Player player) {
         DisguiseInfo info = disguises.remove(player.getUniqueId());
-        if (info != null) info.display.remove();
+        if (info != null) {
+            info.display.remove();
+            if (info.hitbox != null) info.hitbox.remove();
+        }
         player.setInvisible(false);
     }
 
@@ -72,6 +75,16 @@ public class DisguiseManager {
     public Material getDisguiseMaterial(Player player) {
         DisguiseInfo info = disguises.get(player.getUniqueId());
         return info == null ? null : info.material;
+    }
+
+    public Player getOwnerOfHitbox(org.bukkit.entity.Entity entity) {
+        if (!(entity instanceof org.bukkit.entity.Shulker)) return null;
+        for (Map.Entry<UUID, DisguiseInfo> entry : disguises.entrySet()) {
+            if (entry.getValue().hitbox != null && entry.getValue().hitbox.equals(entity)) {
+                return Bukkit.getPlayer(entry.getKey());
+            }
+        }
+        return null;
     }
 
     // ─────────────────────────────────────────────
@@ -95,6 +108,10 @@ public class DisguiseManager {
                 // 모드 1: 블럭 숨기기
                 info.display.setVisibleByDefault(false);
                 Bukkit.getOnlinePlayers().forEach(op -> op.hideEntity(plugin, info.display));
+            }
+            if (info.hitbox != null) {
+                info.hitbox.remove();
+                info.hitbox = null;
             }
             info.display.setTeleportDuration(1);
             return true;
@@ -124,17 +141,40 @@ public class DisguiseManager {
                     pLoc.getBlockZ() + 0.5
             );
             info.display.teleport(snapLoc);
+            createHitbox(info, snapLoc);
         } else {
             // 모드 2: 현재 위치 격자에 고정
             info.isSolidified = true;
             info.display.setTeleportDuration(0);
+            Location snapLoc = new Location(
+                    player.getWorld(),
+                    player.getLocation().getBlockX() + 0.5,
+                    player.getLocation().getBlockY(),
+                    player.getLocation().getBlockZ() + 0.5
+            );
+            createHitbox(info, snapLoc);
         }
         return true;
+    }
+
+    private void createHitbox(DisguiseInfo info, Location loc) {
+        if (info.hitbox == null) {
+            info.hitbox = (org.bukkit.entity.Shulker) loc.getWorld().spawnEntity(loc, EntityType.SHULKER);
+            info.hitbox.setInvisible(true);
+            info.hitbox.setAI(false);
+            info.hitbox.setSilent(true);
+            info.hitbox.setGravity(false);
+            info.hitbox.setCollidable(false);
+            info.hitbox.setInvulnerable(false);
+        } else {
+            info.hitbox.teleport(loc);
+        }
     }
 
     public void cleanupAll() {
         for (DisguiseInfo info : disguises.values()) {
             info.display.remove();
+            if (info.hitbox != null) info.hitbox.remove();
         }
         disguises.clear();
         for (Player p : Bukkit.getOnlinePlayers()) {
@@ -176,6 +216,10 @@ public class DisguiseManager {
                             info.isSolidified = false;
                             info.display.setVisibleByDefault(false);
                             Bukkit.getOnlinePlayers().forEach(op -> op.hideEntity(plugin, info.display));
+                            if (info.hitbox != null) {
+                                info.hitbox.remove();
+                                info.hitbox = null;
+                            }
                             p.sendActionBar(net.kyori.adventure.text.Component.text(
                                     "§c⚠ 발 아래 블럭이 없어 고정이 풀렸습니다!"));
                         } else {
@@ -186,6 +230,7 @@ public class DisguiseManager {
                                     pLoc.getBlockZ() + 0.5
                             );
                             info.display.teleport(snapLoc);
+                            if (info.hitbox != null) info.hitbox.teleport(snapLoc);
                         }
                     } else {
                         // 모드 2: 현재 위치 격자에 고정 (이동 시 격자 단위로 이동)
@@ -196,6 +241,7 @@ public class DisguiseManager {
                                 pLoc.getBlockZ() + 0.5
                         );
                         info.display.teleport(snapLoc);
+                        if (info.hitbox != null) info.hitbox.teleport(snapLoc);
                     }
                 }
             }
@@ -210,6 +256,7 @@ public class DisguiseManager {
         BlockDisplay display;
         Material material;
         boolean isSolidified = false;
+        org.bukkit.entity.Shulker hitbox;
 
         DisguiseInfo(BlockDisplay display, Material material) {
             this.display = display;

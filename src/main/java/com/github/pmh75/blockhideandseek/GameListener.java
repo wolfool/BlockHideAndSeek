@@ -8,6 +8,7 @@ import org.bukkit.event.EventPriority;
 import org.bukkit.event.Listener;
 import org.bukkit.event.block.BlockBreakEvent;
 import org.bukkit.event.block.BlockPlaceEvent;
+import org.bukkit.event.entity.EntityDamageByEntityEvent;
 import org.bukkit.event.entity.EntityDamageEvent;
 import org.bukkit.event.entity.PlayerDeathEvent;
 import org.bukkit.event.player.PlayerDropItemEvent;
@@ -49,6 +50,23 @@ public class GameListener implements Listener {
         if (event.getCause() == EntityDamageEvent.DamageCause.SUFFOCATION) {
             if (plugin.getDisguiseManager().isDisguised(player)) {
                 event.setCancelled(true);
+            }
+        }
+    }
+
+    // ─────────────────────────────────────────────
+    //  위장 셜커(히트박스) 피격 시 플레이어에게 데미지 전달
+    // ─────────────────────────────────────────────
+
+    @EventHandler(priority = EventPriority.HIGH)
+    public void onShulkerDamage(EntityDamageByEntityEvent event) {
+        if (event.getEntity() instanceof org.bukkit.entity.Shulker) {
+            Player owner = plugin.getDisguiseManager().getOwnerOfHitbox(event.getEntity());
+            if (owner != null) {
+                event.setCancelled(true);
+                if (event.getDamager() instanceof Player attacker) {
+                    owner.damage(event.getDamage(), attacker);
+                }
             }
         }
     }
