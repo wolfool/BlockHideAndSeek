@@ -267,70 +267,94 @@ public class DisguiseManager {
             @Override
             public void run() {
                 int gameMode = plugin.getConfig().getInt("game-mode", 2);
-
                 for (Map.Entry<UUID, DisguiseInfo> entry : disguises.entrySet()) {
                     Player p = Bukkit.getPlayer(entry.getKey());
                     if (p == null || !p.isOnline()) continue;
-
-                    DisguiseInfo info = entry.getValue();
-                    Location pLoc = p.getLocation();
-
-                    if (!info.isSolidified) {
-                        if (gameMode == 1) {
-                            // 모드 1: 쉬프트 누르고 있는 동안 매 틱 발 아래 블럭 확인
-                            if (p.isSneaking()) {
-                                Block blockBelow = pLoc.clone().subtract(0, 0.1, 0).getBlock();
-                                if (!blockBelow.getType().isAir() && blockBelow.getType().isSolid() && blockBelow.getBoundingBox().getVolume() >= 1.0) {
-                                    // 유효한 블럭 → 변신!
-                                    solidifyMode1(p, info, pLoc, blockBelow);
-                                }
-                            }
-                        } else {
-                            // 모드 2: 부드럽게 따라다님
-                            info.display.teleport(pLoc);
-                            if (info.hitbox != null) {
-                                info.hitbox.teleport(pLoc);
-                            }
-                        }
-                    } else if (gameMode == 1) {
-                        // 모드 1: 쉬프트 중 - 발 아래 블럭 위에 고정
-                        Block blockBelow = pLoc.clone().subtract(0, 0.1, 0).getBlock();
-
-                        if (blockBelow.getType().isAir() || !blockBelow.getType().isSolid() || blockBelow.getBoundingBox().getVolume() < 1.0) {
-                            // 발 아래가 유효하지 않으면 고정 해제 (쉬프트는 유지 중)
-                            unsolidifyMode1(p, info);
-                            p.sendActionBar(net.kyori.adventure.text.Component.text(
-                                    "§c⚠ 발 아래 블럭이 없어 고정이 풀렸습니다!"));
-                        } else {
-                            // 블럭 종류가 바뀌었으면 업데이트
-                            if (blockBelow.getType() != info.material) {
-                                info.display.setBlock(Bukkit.createBlockData(blockBelow.getType()));
-                                info.material = blockBelow.getType();
-                                p.getEquipment().setHelmet(new org.bukkit.inventory.ItemStack(blockBelow.getType()));
-                            }
-                            Location snapLoc = new Location(
-                                    pLoc.getWorld(),
-                                    pLoc.getBlockX() + 0.5,
-                                    blockBelow.getY() + 1.0,
-                                    pLoc.getBlockZ() + 0.5
-                            );
-                            info.display.teleport(snapLoc);
-                            if (info.hitbox != null) info.hitbox.teleport(snapLoc);
-                        }
-                    } else {
-                        // 모드 2: 현재 위치 격자에 고정 (이동 시 격자 단위로 이동)
-                        Location snapLoc = new Location(
-                                pLoc.getWorld(),
-                                pLoc.getBlockX() + 0.5,
-                                pLoc.getBlockY(),
-                                pLoc.getBlockZ() + 0.5
-                        );
-                        info.display.teleport(snapLoc);
-                        if (info.hitbox != null) info.hitbox.teleport(snapLoc);
-                    }
+                    updateDisguiseTick(p, entry.getValue(), gameMode);
                 }
             }
         }.runTaskTimer(plugin, 1L, 1L);
+    }
+
+    private void updateDisguiseTick(Player player, DisguiseInfo info, int gameMode) {
+        Location pLoc = player.getLocation();
+
+        if (!info.isSolidified) {
+            if (gameMode == 1) {
+                tickMode1Idle(player, info, pLoc);
+            } else {
+                tickMode2Idle(info, pLoc);
+            }
+        } else if (gameMode == 1) {
+            tickMode1Solidified(player, info, pLoc);
+        } else {
+            tickMode2Solidified(info, pLoc);
+        }
+    }
+
+    private void tickMode1Idle(Player player, DisguiseInfo info, Location pLoc) {
+        if (!player.isSneaking()) return;
+        Block blockBelow = pLoc.clone().subtract(0, 0.1, 0).getBlock();
+        if (isValidFullBlock(blockBelow)) {
+            solidifyMode1(player, info, pLoc, blockBelow);
+        }
+    }
+
+    private void tickMode2Idle(DisguiseInfo info, Location pLoc) {
+        info.display.teleport(pLoc);
+        if (info.hitbox != null) {
+            info.hitbox.teleport(pLoc);
+        }
+    }
+
+    private void tickMode1Solidified(Player player, DisguiseInfo info, Location pLoc) {
+        Block blockBelow = pLoc.clone().subtract(0, 0.1, 0).getBlock();
+
+        if (!isValidFullBlock(blockBelow)) {
+            unsolidifyMode1(player, info);
+            player.sendActionBar(net.kyori.adventure.text.Component.text(
+                    "§c⚠ 발 아래 블럭이 없어 고정이 풀렸습니다!"));
+            return;
+        }
+
+        updateBlockType(player, info, blockBelow);
+        snapToBlock(info, pLoc, blockBelow);
+    }
+
+    private void tickMode2Solidified(DisguiseInfo info, Location pLoc) {
+        Location snapLoc = new Location(
+                pLoc.getWorld(),
+                pLoc.getBlockX() + 0.5,
+                pLoc.getBlockY(),
+                pLoc.getBlockZ() + 0.5
+        );
+        info.display.teleport(snapLoc);
+        if (info.hitbox != null) info.hitbox.teleport(snapLoc);
+    }
+
+    private boolean isValidFullBlock(Block block) {
+        return !block.getType().isAir()
+                && block.getType().isSolid()
+                && block.getBoundingBox().getVolume() >= 1.0;
+    }
+
+    private void updateBlockType(Player player, DisguiseInfo info, Block blockBelow) {
+        if (blockBelow.getType() != info.material) {
+            info.display.setBlock(Bukkit.createBlockData(blockBelow.getType()));
+            info.material = blockBelow.getType();
+            player.getEquipment().setHelmet(new org.bukkit.inventory.ItemStack(blockBelow.getType()));
+        }
+    }
+
+    private void snapToBlock(DisguiseInfo info, Location pLoc, Block blockBelow) {
+        Location snapLoc = new Location(
+                pLoc.getWorld(),
+                pLoc.getBlockX() + 0.5,
+                blockBelow.getY() + 1.0,
+                pLoc.getBlockZ() + 0.5
+        );
+        info.display.teleport(snapLoc);
+        if (info.hitbox != null) info.hitbox.teleport(snapLoc);
     }
 
     // ─────────────────────────────────────────────
