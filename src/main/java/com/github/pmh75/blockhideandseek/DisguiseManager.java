@@ -7,6 +7,7 @@ import org.bukkit.block.Block;
 import org.bukkit.entity.BlockDisplay;
 import org.bukkit.entity.EntityType;
 import org.bukkit.entity.Player;
+import org.bukkit.inventory.ItemStack;
 import org.bukkit.scheduler.BukkitRunnable;
 import org.bukkit.util.Transformation;
 
@@ -24,36 +25,30 @@ public class DisguiseManager {
         startUpdateTask();
     }
 
-    // ─────────────────────────────────────────────
-    //  변신
-    // ─────────────────────────────────────────────
-
     public void disguise(Player player, Material material) {
-        undisguise(player); // 기존 위장 제거
+        disguise(player, DisguiseBlock.vanilla(material));
+    }
+
+    public void disguise(Player player, DisguiseBlock disguise) {
+        undisguise(player);
 
         Location spawnLoc = player.getLocation();
         BlockDisplay display = (BlockDisplay) player.getWorld().spawnEntity(spawnLoc, EntityType.BLOCK_DISPLAY);
-        display.setBlock(Bukkit.createBlockData(material));
+        display.setBlock(disguise.createBlockData());
 
-        // 블럭 디스플레이는 모서리 기준이므로 -0.5 오프셋 적용
         Transformation transform = display.getTransformation();
         transform.getTranslation().set(-0.5f, 0f, -0.5f);
         display.setTransformation(transform);
         display.setTeleportDuration(1);
         display.setShadowRadius(0f);
         display.setShadowStrength(0f);
-
-        // 항상 기본적으로 안 보이게 설정 (오직 남들에게만 수동으로 보여줌)
         display.setVisibleByDefault(false);
 
         int gameMode = plugin.getConfig().getInt("game-mode", 2);
         if (gameMode == 1) {
-            // 모드 1: 쉬프트 안 누를 때는 본체 보임, 블럭 숨김 (위에서 false로 했으니 블럭은 안 보임)
             showPlayerToAll(player);
         } else {
-            // 모드 2: 항상 블럭 상태, 본체 숨김
             hidePlayerFromAll(player);
-            // 남들에게만 블럭 보이게 처리
             Bukkit.getOnlinePlayers().forEach(op -> {
                 if (!op.equals(player)) {
                     op.showEntity(plugin, display);
@@ -61,15 +56,14 @@ public class DisguiseManager {
             });
         }
 
-        // 혹시 모를 대비로 본인에게 강제 숨김 처리 한 번 더
         player.hideEntity(plugin, display);
 
-        org.bukkit.inventory.ItemStack originalHelmet = player.getEquipment().getHelmet();
-        DisguiseInfo newInfo = new DisguiseInfo(display, material, originalHelmet);
+        ItemStack originalHelmet = player.getEquipment().getHelmet();
+        DisguiseInfo newInfo = new DisguiseInfo(display, disguise, originalHelmet);
         disguises.put(player.getUniqueId(), newInfo);
 
         if (gameMode == 2) {
-            player.getEquipment().setHelmet(new org.bukkit.inventory.ItemStack(material));
+            player.getEquipment().setHelmet(disguise.createHelmetItem());
             createHitbox(player, newInfo, spawnLoc);
         }
     }
@@ -111,7 +105,7 @@ public class DisguiseManager {
 
     public Material getDisguiseMaterial(Player player) {
         DisguiseInfo info = disguises.get(player.getUniqueId());
-        return info == null ? null : info.material;
+        return info == null ? null : info.disguise.material();
     }
 
     public Player getOwnerOfHitbox(org.bukkit.entity.Entity entity) {
@@ -129,7 +123,7 @@ public class DisguiseManager {
         for (Map.Entry<UUID, DisguiseInfo> entry : disguises.entrySet()) {
             Player owner = Bukkit.getPlayer(entry.getKey());
             if (owner == null || owner.equals(viewer)) continue;
-            
+
             DisguiseInfo info = entry.getValue();
             if (info.isSolidified || gameMode == 2) {
                 viewer.showEntity(plugin, info.display);
@@ -137,13 +131,9 @@ public class DisguiseManager {
         }
     }
 
-    // ─────────────────────────────────────────────
-    //  쉬프트 고정 처리
-    // ─────────────────────────────────────────────
-
     /**
      * @param isSneaking true = 고정 시도, false = 고정 해제
-     * @return false = 고정 실패 (발 아래 블럭 없음, 모드 1 전용)
+     * @return false = 고정 실패
      */
     public boolean toggleSolidify(Player player, boolean isSneaking) {
         DisguiseInfo info = disguises.get(player.getUniqueId());
@@ -152,7 +142,6 @@ public class DisguiseManager {
         int gameMode = plugin.getConfig().getInt("game-mode", 2);
 
         if (!isSneaking) {
-            // 고정 해제
             info.isSolidified = false;
             if (gameMode == 1) {
                 unsolidifyMode1(player, info);
@@ -161,19 +150,16 @@ public class DisguiseManager {
             return true;
         }
 
-        // 고정 시도
         if (gameMode == 1) {
-            // 모드 1: 발 아래 블럭에 고정
             Location pLoc = player.getLocation();
             Block blockBelow = pLoc.clone().subtract(0, 0.1, 0).getBlock();
 
-            if (blockBelow.getType().isAir() || !blockBelow.getType().isSolid() || blockBelow.getBoundingBox().getVolume() < 1.0) {
+            if (!isValidFullBlock(blockBelow)) {
                 return false;
             }
 
             solidifyMode1(player, info, pLoc, blockBelow);
         } else {
-            // 모드 2: 현재 위치 격자에 고정
             info.isSolidified = true;
             info.display.setTeleportDuration(0);
             Location snapLoc = new Location(
@@ -217,14 +203,11 @@ public class DisguiseManager {
         }
     }
 
-    // ─────────────────────────────────────────────
-    //  모드 1 변신/해제 헬퍼
-    // ─────────────────────────────────────────────
-
     private void solidifyMode1(Player player, DisguiseInfo info, Location pLoc, Block blockBelow) {
-        info.display.setBlock(Bukkit.createBlockData(blockBelow.getType()));
-        info.material = blockBelow.getType();
-        player.getEquipment().setHelmet(new org.bukkit.inventory.ItemStack(blockBelow.getType()));
+        DisguiseBlock block = DisguiseBlock.vanilla(blockBelow.getType());
+        info.display.setBlock(block.createBlockData());
+        info.disguise = block;
+        player.getEquipment().setHelmet(block.createHelmetItem());
 
         info.isSolidified = true;
         info.display.setTeleportDuration(0);
@@ -257,10 +240,6 @@ public class DisguiseManager {
             info.hitbox = null;
         }
     }
-
-    // ─────────────────────────────────────────────
-    //  매 틱 위치 업데이트
-    // ─────────────────────────────────────────────
 
     private void startUpdateTask() {
         new BukkitRunnable() {
@@ -313,7 +292,7 @@ public class DisguiseManager {
         if (!isValidFullBlock(blockBelow)) {
             unsolidifyMode1(player, info);
             player.sendActionBar(net.kyori.adventure.text.Component.text(
-                    "§c⚠ 발 아래 블럭이 없어 고정이 풀렸습니다!"));
+                    "발 아래 블럭이 없어 고정이 풀렸습니다!"));
             return;
         }
 
@@ -339,10 +318,11 @@ public class DisguiseManager {
     }
 
     private void updateBlockType(Player player, DisguiseInfo info, Block blockBelow) {
-        if (blockBelow.getType() != info.material) {
-            info.display.setBlock(Bukkit.createBlockData(blockBelow.getType()));
-            info.material = blockBelow.getType();
-            player.getEquipment().setHelmet(new org.bukkit.inventory.ItemStack(blockBelow.getType()));
+        if (blockBelow.getType() != info.disguise.material()) {
+            DisguiseBlock block = DisguiseBlock.vanilla(blockBelow.getType());
+            info.display.setBlock(block.createBlockData());
+            info.disguise = block;
+            player.getEquipment().setHelmet(block.createHelmetItem());
         }
     }
 
@@ -357,20 +337,16 @@ public class DisguiseManager {
         if (info.hitbox != null) info.hitbox.teleport(snapLoc);
     }
 
-    // ─────────────────────────────────────────────
-    //  내부 데이터
-    // ─────────────────────────────────────────────
-
     private static class DisguiseInfo {
         BlockDisplay display;
-        Material material;
+        DisguiseBlock disguise;
         boolean isSolidified = false;
         org.bukkit.entity.Shulker hitbox;
-        org.bukkit.inventory.ItemStack originalHelmet;
+        ItemStack originalHelmet;
 
-        DisguiseInfo(BlockDisplay display, Material material, org.bukkit.inventory.ItemStack originalHelmet) {
+        DisguiseInfo(BlockDisplay display, DisguiseBlock disguise, ItemStack originalHelmet) {
             this.display = display;
-            this.material = material;
+            this.disguise = disguise;
             this.originalHelmet = originalHelmet;
         }
     }

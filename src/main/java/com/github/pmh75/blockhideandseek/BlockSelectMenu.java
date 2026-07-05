@@ -4,6 +4,7 @@ import net.md_5.bungee.api.ChatMessageType;
 import net.md_5.bungee.api.chat.TextComponent;
 import org.bukkit.Bukkit;
 import org.bukkit.ChatColor;
+import org.bukkit.GameMode;
 import org.bukkit.Material;
 import org.bukkit.Sound;
 import org.bukkit.entity.Player;
@@ -22,6 +23,7 @@ import java.util.Collections;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
 import java.util.Random;
 import java.util.Set;
@@ -29,11 +31,13 @@ import java.util.UUID;
 
 public class BlockSelectMenu implements Listener {
 
+    private static final String MENU_TITLE = ChatColor.DARK_GREEN + "" + ChatColor.BOLD + "변신할 블럭을 선택하세요!";
+
     private final BlockHideAndSeek plugin;
     private final Set<UUID> openMenus = new HashSet<>();
-    // 플레이어별 선택 제한 타이머
     private final Map<UUID, BukkitTask> selectionTimers = new HashMap<>();
-    // 강제 변경 주기 타이머 (모드 2)
+    private final Map<UUID, List<DisguiseBlock>> openChoices = new HashMap<>();
+    private final Set<String> warnedInvalidBlocks = new HashSet<>();
     private BukkitTask changeTask;
 
     public BlockSelectMenu(BlockHideAndSeek plugin) {
@@ -41,56 +45,60 @@ public class BlockSelectMenu implements Listener {
         Bukkit.getPluginManager().registerEvents(this, plugin);
     }
 
-    // ─────────────────────────────────────────────
-    //  공통: 블럭 선택 GUI 열기
-    // ─────────────────────────────────────────────
-
     public void open(Player player) {
-        // 선택지 수만큼 랜덤 블럭 추출
-        List<String> all = plugin.getConfig().getStringList("selectable-blocks");
+        List<DisguiseBlock> allChoices = loadChoices(player);
         int count = plugin.getConfig().getInt("mode2.choices-count", 5);
-        List<Material> chosen = pickRandom(all, count);
+        List<DisguiseBlock> chosen = pickRandom(allChoices, count);
 
-        // 인벤토리 크기: 선택지가 9개 이하면 9, 아니면 18
-        int invSize = chosen.size() <= 9 ? 9 : 18;
-        Inventory inv = Bukkit.createInventory(null, invSize,
-                ChatColor.DARK_GREEN + "" + ChatColor.BOLD + "변신할 블럭을 선택하세요!");
-
-        for (Material mat : chosen) {
-            ItemStack item = new ItemStack(mat);
-            ItemMeta meta = item.getItemMeta();
-            if (meta != null) {
-                meta.setDisplayName(ChatColor.GREEN + mat.name());
-                List<String> lore = new ArrayList<>();
-                lore.add(ChatColor.GRAY + "클릭하여 변신!");
-                meta.setLore(lore);
-                item.setItemMeta(meta);
-            }
-            inv.addItem(item);
+        if (chosen.isEmpty()) {
+            player.sendMessage(ChatColor.RED + "선택 가능한 블럭이 없습니다. config.yml을 확인하세요.");
+            return;
         }
 
-        openMenus.add(player.getUniqueId());
+        int invSize = getInventorySize(chosen.size());
+        if (chosen.size() > invSize) {
+            chosen = new ArrayList<>(chosen.subList(0, invSize));
+        }
+
+        Inventory inv = Bukkit.createInventory(null, invSize, MENU_TITLE);
+        for (int i = 0; i < chosen.size(); i++) {
+            inv.setItem(i, createMenuItem(chosen.get(i)));
+        }
+
+        UUID uuid = player.getUniqueId();
+        openMenus.add(uuid);
+        openChoices.put(uuid, chosen);
         player.openInventory(inv);
 
-        // 선택 시간 제한 시작
         startSelectionTimer(player, chosen);
     }
 
-    // 모드 1용: 메뉴 없이 바로 기본 블럭으로 변신
     public void applyMode1Default(Player player) {
-        List<String> all = plugin.getConfig().getStringList("selectable-blocks");
-        if (all.isEmpty()) return;
-        try {
-            Material mat = Material.valueOf(all.get(0).toUpperCase());
-            plugin.getDisguiseManager().disguise(player, mat);
-        } catch (IllegalArgumentException ignored) {}
+        List<DisguiseBlock> choices = loadChoices(player);
+        if (!choices.isEmpty()) {
+            plugin.getDisguiseManager().disguise(player, choices.get(0));
+        }
     }
 
-    // ─────────────────────────────────────────────
-    //  선택 제한 타이머 (모드 2)
-    // ─────────────────────────────────────────────
+    private ItemStack createMenuItem(DisguiseBlock block) {
+        ItemStack item = block.createIcon();
+        ItemMeta meta = item.getItemMeta();
+        if (meta != null) {
+            ChatColor color = block.isCustom() ? ChatColor.AQUA : ChatColor.GREEN;
+            meta.setDisplayName(color + block.displayName());
 
-    private void startSelectionTimer(Player player, List<Material> choices) {
+            List<String> lore = new ArrayList<>();
+            lore.add(ChatColor.GRAY + "클릭하여 변신!");
+            if (block.isCustom()) {
+                lore.add(ChatColor.DARK_GRAY + block.id());
+            }
+            meta.setLore(lore);
+            item.setItemMeta(meta);
+        }
+        return item;
+    }
+
+    private void startSelectionTimer(Player player, List<DisguiseBlock> choices) {
         cancelSelectionTimer(player);
 
         int limit = plugin.getConfig().getInt("mode2.selection-time", 10);
@@ -100,25 +108,24 @@ public class BlockSelectMenu implements Listener {
 
             @Override
             public void run() {
-                if (!openMenus.contains(player.getUniqueId())) {
+                UUID uuid = player.getUniqueId();
+                if (!openMenus.contains(uuid)) {
                     cancel();
                     return;
                 }
                 if (remaining <= 0) {
-                    // 시간 초과 → 랜덤 선택
                     cancel();
-                    openMenus.remove(player.getUniqueId());
+                    selectionTimers.remove(uuid);
+                    openMenus.remove(uuid);
+                    openChoices.remove(uuid);
                     player.closeInventory();
 
-                    Material random = choices.isEmpty()
-                            ? Material.BOOKSHELF
-                            : choices.get(new Random().nextInt(choices.size()));
+                    DisguiseBlock random = choices.get(new Random().nextInt(choices.size()));
                     plugin.getDisguiseManager().disguise(player, random);
-                    player.sendMessage(ChatColor.YELLOW + "⏰ 시간 초과! " + random.name() + " 으로 랜덤 변신되었습니다.");
+                    player.sendMessage(ChatColor.YELLOW + "시간 초과! " + random.displayName() + " 으로 랜덤 변신되었습니다.");
                     return;
                 }
 
-                // 액션바 카운트다운
                 String bar = ChatColor.YELLOW + "블럭을 선택하세요! " + ChatColor.RED + remaining + "초";
                 player.spigot().sendMessage(ChatMessageType.ACTION_BAR, TextComponent.fromLegacyText(bar));
                 if (remaining <= 3) {
@@ -136,10 +143,6 @@ public class BlockSelectMenu implements Listener {
         if (t != null) t.cancel();
     }
 
-    // ─────────────────────────────────────────────
-    //  모드 2: 주기적 강제 블럭 변경
-    // ─────────────────────────────────────────────
-
     public void startChangeTask() {
         stopChangeTask();
 
@@ -155,12 +158,11 @@ public class BlockSelectMenu implements Listener {
                     return;
                 }
 
-                // 10초 전부터 경고
                 if (countdown <= 10 && countdown > 0) {
                     for (UUID uid : plugin.getGameManager().getHiders()) {
                         Player p = Bukkit.getPlayer(uid);
                         if (p == null) continue;
-                        String bar = ChatColor.RED + "⚠ " + countdown + "초 후 블럭 변경!";
+                        String bar = ChatColor.RED + "" + countdown + "초 후 블럭 변경!";
                         p.spigot().sendMessage(ChatMessageType.ACTION_BAR, TextComponent.fromLegacyText(bar));
                         if (countdown <= 3) {
                             p.playSound(p.getLocation(), Sound.BLOCK_NOTE_BLOCK_PLING, 1f, 1.5f);
@@ -169,17 +171,15 @@ public class BlockSelectMenu implements Listener {
                 }
 
                 if (countdown <= 0) {
-                    // 블럭 변경!
                     for (UUID uid : plugin.getGameManager().getHiders()) {
                         Player p = Bukkit.getPlayer(uid);
-                        if (p == null || p.getGameMode() == org.bukkit.GameMode.SPECTATOR) continue;
-                        // 고정 해제 후 GUI 열기
+                        if (p == null || p.getGameMode() == GameMode.SPECTATOR) continue;
                         plugin.getDisguiseManager().toggleSolidify(p, false);
                         open(p);
                         p.playSound(p.getLocation(), Sound.ENTITY_EXPERIENCE_ORB_PICKUP, 1f, 1f);
                     }
-                    Bukkit.broadcastMessage(ChatColor.YELLOW + "⚡ 도망자들이 블럭을 바꿔야 합니다!");
-                    countdown = interval; // 리셋
+                    Bukkit.broadcastMessage(ChatColor.YELLOW + "숨는 사람들의 블럭이 바뀝니다!");
+                    countdown = interval;
                 } else {
                     countdown--;
                 }
@@ -194,53 +194,107 @@ public class BlockSelectMenu implements Listener {
         }
     }
 
-    // ─────────────────────────────────────────────
-    //  인벤토리 이벤트
-    // ─────────────────────────────────────────────
-
     @EventHandler
     public void onInventoryClick(InventoryClickEvent event) {
         if (!(event.getWhoClicked() instanceof Player player)) return;
-        if (!openMenus.contains(player.getUniqueId())) return;
-        if (!event.getView().getTitle().contains("변신할 블럭을 선택")) return;
+        if (!isSelectionMenu(event)) return;
 
         event.setCancelled(true);
+
+        int rawSlot = event.getRawSlot();
+        if (rawSlot < 0 || rawSlot >= event.getView().getTopInventory().getSize()) return;
+
+        List<DisguiseBlock> choices = openChoices.get(player.getUniqueId());
+        if (choices == null || rawSlot >= choices.size()) return;
 
         ItemStack clicked = event.getCurrentItem();
         if (clicked == null || clicked.getType() == Material.AIR) return;
 
+        DisguiseBlock selected = choices.get(rawSlot);
         cancelSelectionTimer(player);
         openMenus.remove(player.getUniqueId());
+        openChoices.remove(player.getUniqueId());
         player.closeInventory();
 
-        plugin.getDisguiseManager().disguise(player, clicked.getType());
-        player.sendMessage(ChatColor.GREEN + "✔ " + clicked.getType().name() + " 블럭으로 변신했습니다!");
+        plugin.getDisguiseManager().disguise(player, selected);
+        player.sendMessage(ChatColor.GREEN + selected.displayName() + " 블럭으로 변신했습니다.");
         player.playSound(player.getLocation(), Sound.ENTITY_PLAYER_LEVELUP, 0.5f, 2f);
     }
 
     @EventHandler
     public void onInventoryClose(InventoryCloseEvent event) {
         if (!(event.getPlayer() instanceof Player player)) return;
-        if (!event.getView().getTitle().contains("변신할 블럭을 선택")) return;
+        if (!MENU_TITLE.equals(event.getView().getTitle())) return;
         if (!openMenus.contains(player.getUniqueId())) return;
 
-        // 아무것도 안 고르고 닫았을 때 → 타이머가 자동 처리
-        // (타이머가 이미 취소됐다면 선택 완료된 것)
+        // 아무것도 고르지 않고 닫으면 타이머가 랜덤 선택을 처리합니다.
     }
 
-    // ─────────────────────────────────────────────
-    //  유틸
-    // ─────────────────────────────────────────────
+    private boolean isSelectionMenu(InventoryClickEvent event) {
+        if (!(event.getWhoClicked() instanceof Player player)) return false;
+        return openMenus.contains(player.getUniqueId()) && MENU_TITLE.equals(event.getView().getTitle());
+    }
 
-    private List<Material> pickRandom(List<String> blockNames, int count) {
-        List<Material> valid = new ArrayList<>();
-        for (String name : blockNames) {
-            try {
-                Material mat = Material.valueOf(name.toUpperCase());
-                if (mat.isBlock()) valid.add(mat);
-            } catch (IllegalArgumentException ignored) {}
+    private List<DisguiseBlock> loadChoices(Player player) {
+        List<DisguiseBlock> choices = new ArrayList<>();
+
+        for (String name : plugin.getConfig().getStringList("selectable-blocks")) {
+            DisguiseBlock block = parseVanillaBlock(name);
+            if (block != null) {
+                choices.add(block);
+            }
         }
+
+        List<String> customIds = plugin.getConfig().getStringList("craftengine.blocks");
+        if (!customIds.isEmpty()) {
+            CraftEngineHook hook = plugin.getCraftEngineHook();
+            if (hook == null || !hook.isAvailable()) {
+                warnOnce("craftengine-unavailable", "craftengine.blocks가 설정됐지만 CraftEngine을 사용할 수 없습니다.");
+            } else {
+                for (String id : customIds) {
+                    DisguiseBlock block = hook.createBlock(id, player);
+                    if (block != null) {
+                        choices.add(block);
+                    }
+                }
+            }
+        }
+
+        return choices;
+    }
+
+    private DisguiseBlock parseVanillaBlock(String name) {
+        if (name == null || name.isBlank()) {
+            return null;
+        }
+
+        try {
+            Material mat = Material.valueOf(name.trim().toUpperCase(Locale.ROOT));
+            if (mat.isBlock()) {
+                return DisguiseBlock.vanilla(mat);
+            }
+            warnOnce("not-block:" + name, "selectable-blocks 항목이 블럭이 아닙니다: " + name);
+        } catch (IllegalArgumentException ignored) {
+            warnOnce("invalid:" + name, "잘못된 selectable-blocks 항목입니다: " + name);
+        }
+        return null;
+    }
+
+    private List<DisguiseBlock> pickRandom(List<DisguiseBlock> choices, int count) {
+        List<DisguiseBlock> valid = new ArrayList<>(choices);
         Collections.shuffle(valid);
-        return valid.subList(0, Math.min(count, valid.size()));
+        int max = Math.min(Math.max(count, 1), valid.size());
+        return new ArrayList<>(valid.subList(0, max));
+    }
+
+    private int getInventorySize(int itemCount) {
+        int rows = Math.max(1, (int) Math.ceil(itemCount / 9.0));
+        return Math.min(54, rows * 9);
+    }
+
+    private void warnOnce(String key, String message) {
+        if (warnedInvalidBlocks.add(key)) {
+            plugin.getLogger().warning(message);
+        }
     }
 }
