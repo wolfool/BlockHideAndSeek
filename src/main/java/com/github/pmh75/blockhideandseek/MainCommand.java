@@ -5,6 +5,7 @@ import net.md_5.bungee.api.chat.HoverEvent;
 import net.md_5.bungee.api.chat.TextComponent;
 import net.md_5.bungee.api.chat.hover.content.Text;
 import org.bukkit.ChatColor;
+import org.bukkit.Material;
 import org.bukkit.command.Command;
 import org.bukkit.command.CommandExecutor;
 import org.bukkit.command.CommandSender;
@@ -38,8 +39,6 @@ public class MainCommand implements CommandExecutor, TabCompleter {
         }
 
         switch (args[0].toLowerCase()) {
-
-            // ── 관리자 명령어 ──────────────────────────────────
 
             case "start" -> {
                 if (!player.isOp()) {
@@ -97,6 +96,14 @@ public class MainCommand implements CommandExecutor, TabCompleter {
                 plugin.getKitManager().openKitEditor(player, args[1]);
             }
 
+            case "blocks" -> {
+                if (!player.isOp()) {
+                    noPermission(player);
+                    return true;
+                }
+                plugin.getMode2BlockManageMenu().open(player);
+            }
+
             case "mode" -> {
                 if (!player.isOp()) {
                     noPermission(player);
@@ -122,17 +129,13 @@ public class MainCommand implements CommandExecutor, TabCompleter {
                 player.sendMessage(ChatColor.GREEN + "config.yml 을 리로드했습니다.");
             }
 
-            // ── 술래 힌트 ──────────────────────────────────────
-
             case "hint" -> plugin.getGameManager().useHint(player);
 
-            // ── 위장 테스트 명령어 (개발용) ───────────────────────
-
             case "test" -> {
-                org.bukkit.Material mat = org.bukkit.Material.OAK_LOG;
+                Material mat = Material.OAK_LOG;
                 if (args.length > 1) {
                     try {
-                        mat = org.bukkit.Material.valueOf(args[1].toUpperCase());
+                        mat = Material.valueOf(args[1].toUpperCase());
                     } catch (IllegalArgumentException e) {
                         player.sendMessage(ChatColor.RED + "잘못된 블럭 이름입니다.");
                         return true;
@@ -159,30 +162,32 @@ public class MainCommand implements CommandExecutor, TabCompleter {
             List<String> options = new ArrayList<>();
             options.add("hint");
             if (sender.isOp()) {
-                options.addAll(Arrays.asList("start", "stop", "setlobby", "sethider", "setseeker", "setkit", "mode", "reload", "test", "untest"));
+                options.addAll(Arrays.asList("start", "stop", "setlobby", "sethider", "setseeker", "setkit", "blocks", "mode", "reload", "test", "untest"));
             }
             return filter(options, args[0]);
         }
 
-        if (args.length == 2) {
-            if (sender.isOp()) {
-                if (args[0].equalsIgnoreCase("setkit")) {
-                    return filter(Arrays.asList("hider", "seeker"), args[1]);
-                }
-                if (args[0].equalsIgnoreCase("mode")) {
-                    return filter(Arrays.asList("1", "2"), args[1]);
-                }
-                if (args[0].equalsIgnoreCase("test")) {
-                    List<String> materials = new ArrayList<>();
-                    for (org.bukkit.Material mat : org.bukkit.Material.values()) {
-                        if (mat.isBlock()) materials.add(mat.name());
-                    }
-                    return filter(materials, args[1]);
-                }
+        if (args.length == 2 && sender.isOp()) {
+            if (args[0].equalsIgnoreCase("setkit")) {
+                return filter(Arrays.asList("hider", "seeker"), args[1]);
+            }
+            if (args[0].equalsIgnoreCase("mode")) {
+                return filter(Arrays.asList("1", "2"), args[1]);
+            }
+            if (args[0].equalsIgnoreCase("test")) {
+                return filter(blockMaterials(), args[1]);
             }
         }
 
         return Collections.emptyList();
+    }
+
+    private List<String> blockMaterials() {
+        List<String> materials = new ArrayList<>();
+        for (Material mat : Material.values()) {
+            if (mat.isBlock()) materials.add(mat.name());
+        }
+        return materials;
     }
 
     private List<String> filter(List<String> list, String prefix) {
@@ -205,6 +210,7 @@ public class MainCommand implements CommandExecutor, TabCompleter {
             sendClickableCommand(player, "/bhs setseeker", "술래 스폰 설정");
             sendClickableCommand(player, "/bhs setkit hider", "도망자 키트 설정 GUI");
             sendClickableCommand(player, "/bhs setkit seeker", "술래 키트 설정 GUI");
+            sendClickableCommand(player, "/bhs blocks", "모드2 선택 가능 블럭 관리 GUI");
             sendClickableCommand(player, "/bhs mode 1", "모드 1로 변경");
             sendClickableCommand(player, "/bhs mode 2", "모드 2로 변경");
             sendClickableCommand(player, "/bhs reload", "설정 리로드");

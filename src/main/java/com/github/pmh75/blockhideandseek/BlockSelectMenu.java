@@ -101,7 +101,7 @@ public class BlockSelectMenu implements Listener {
     private void startSelectionTimer(Player player, List<DisguiseBlock> choices) {
         cancelSelectionTimer(player);
 
-        int limit = plugin.getConfig().getInt("mode2.selection-time", 10);
+        int limit = plugin.getConfig().getInt("mode2.selection-time", 30);
 
         BukkitTask task = new BukkitRunnable() {
             int remaining = limit;
