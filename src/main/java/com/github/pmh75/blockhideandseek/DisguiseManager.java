@@ -30,6 +30,14 @@ public class DisguiseManager {
     }
 
     public void disguise(Player player, DisguiseBlock disguise) {
+        disguise(player, disguise, false);
+    }
+
+    public void disguiseAsBlock(Player player, DisguiseBlock disguise) {
+        disguise(player, disguise, true);
+    }
+
+    private void disguise(Player player, DisguiseBlock disguise, boolean forceBlockMode) {
         undisguise(player);
 
         Location spawnLoc = player.getLocation();
@@ -45,24 +53,26 @@ public class DisguiseManager {
         display.setVisibleByDefault(false);
 
         int gameMode = plugin.getConfig().getInt("game-mode", 2);
-        if (gameMode == 1) {
-            showPlayerToAll(player);
-        } else {
+        boolean blockMode = forceBlockMode || gameMode == 2;
+        if (blockMode) {
             hidePlayerFromAll(player);
             Bukkit.getOnlinePlayers().forEach(op -> {
                 if (!op.equals(player)) {
                     op.showEntity(plugin, display);
                 }
             });
+        } else {
+            showPlayerToAll(player);
         }
+        player.setInvisible(blockMode);
 
         player.hideEntity(plugin, display);
 
         ItemStack originalHelmet = player.getEquipment().getHelmet();
-        DisguiseInfo newInfo = new DisguiseInfo(display, disguise, originalHelmet);
+        DisguiseInfo newInfo = new DisguiseInfo(display, disguise, originalHelmet, forceBlockMode);
         disguises.put(player.getUniqueId(), newInfo);
 
-        if (gameMode == 2) {
+        if (blockMode) {
             player.getEquipment().setHelmet(disguise.createHelmetItem());
             createHitbox(player, newInfo, spawnLoc);
         }
@@ -91,6 +101,7 @@ public class DisguiseManager {
             if (info.hitbox != null) info.hitbox.remove();
             player.getEquipment().setHelmet(info.originalHelmet);
         }
+        player.setInvisible(false);
         showPlayerToAll(player);
     }
 
@@ -125,8 +136,9 @@ public class DisguiseManager {
             if (owner == null || owner.equals(viewer)) continue;
 
             DisguiseInfo info = entry.getValue();
-            if (info.isSolidified || gameMode == 2) {
+            if (info.forceBlockMode || info.isSolidified || gameMode == 2) {
                 viewer.showEntity(plugin, info.display);
+                viewer.hidePlayer(plugin, owner);
             }
         }
     }
@@ -139,7 +151,7 @@ public class DisguiseManager {
         DisguiseInfo info = disguises.get(player.getUniqueId());
         if (info == null) return true;
 
-        int gameMode = plugin.getConfig().getInt("game-mode", 2);
+        int gameMode = info.forceBlockMode ? 2 : plugin.getConfig().getInt("game-mode", 2);
 
         if (!isSneaking) {
             info.isSolidified = false;
@@ -194,7 +206,10 @@ public class DisguiseManager {
             info.display.remove();
             if (info.hitbox != null) info.hitbox.remove();
             Player p = Bukkit.getPlayer(entry.getKey());
-            if (p != null) p.getEquipment().setHelmet(info.originalHelmet);
+            if (p != null) {
+                p.getEquipment().setHelmet(info.originalHelmet);
+                p.setInvisible(false);
+            }
         }
         disguises.clear();
         for (Player p : Bukkit.getOnlinePlayers()) {
@@ -249,7 +264,9 @@ public class DisguiseManager {
                 for (Map.Entry<UUID, DisguiseInfo> entry : disguises.entrySet()) {
                     Player p = Bukkit.getPlayer(entry.getKey());
                     if (p == null || !p.isOnline()) continue;
-                    updateDisguiseTick(p, entry.getValue(), gameMode);
+                    DisguiseInfo info = entry.getValue();
+                    int effectiveGameMode = info.forceBlockMode ? 2 : gameMode;
+                    updateDisguiseTick(p, info, effectiveGameMode);
                 }
             }
         }.runTaskTimer(plugin, 1L, 1L);
@@ -341,13 +358,15 @@ public class DisguiseManager {
         BlockDisplay display;
         DisguiseBlock disguise;
         boolean isSolidified = false;
+        boolean forceBlockMode;
         org.bukkit.entity.Shulker hitbox;
         ItemStack originalHelmet;
 
-        DisguiseInfo(BlockDisplay display, DisguiseBlock disguise, ItemStack originalHelmet) {
+        DisguiseInfo(BlockDisplay display, DisguiseBlock disguise, ItemStack originalHelmet, boolean forceBlockMode) {
             this.display = display;
             this.disguise = disguise;
             this.originalHelmet = originalHelmet;
+            this.forceBlockMode = forceBlockMode;
         }
     }
 }

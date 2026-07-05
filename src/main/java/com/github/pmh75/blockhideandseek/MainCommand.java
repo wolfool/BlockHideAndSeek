@@ -132,17 +132,24 @@ public class MainCommand implements CommandExecutor, TabCompleter {
             case "hint" -> plugin.getGameManager().useHint(player);
 
             case "test" -> {
-                Material mat = Material.OAK_LOG;
-                if (args.length > 1) {
-                    try {
-                        mat = Material.valueOf(args[1].toUpperCase());
-                    } catch (IllegalArgumentException e) {
-                        player.sendMessage(ChatColor.RED + "잘못된 블럭 이름입니다.");
-                        return true;
-                    }
+                if (args.length < 2) {
+                    player.sendMessage(ChatColor.RED + "사용법: /bhs test <블럭이름|craftengine:id>");
+                    return true;
                 }
-                plugin.getDisguiseManager().disguise(player, mat);
-                player.sendMessage(ChatColor.GREEN + mat.name() + " 으로 위장 테스트! (Shift = 격자 고정)");
+
+                DisguiseBlock disguise = parseTestDisguise(player, args[1]);
+                if (disguise == null) {
+                    player.sendMessage(ChatColor.RED + "잘못된 블럭 이름이거나 CraftEngine 블럭을 찾을 수 없습니다.");
+                    return true;
+                }
+
+                if (disguise.isCustom()) {
+                    plugin.getDisguiseManager().disguiseAsBlock(player, disguise);
+                    player.sendMessage(ChatColor.GREEN + disguise.displayName() + " 커스텀 블럭으로 위장 테스트!");
+                } else {
+                    plugin.getDisguiseManager().disguise(player, disguise);
+                    player.sendMessage(ChatColor.GREEN + disguise.displayName() + " 으로 위장 테스트! (Shift = 격자 고정)");
+                }
             }
 
             case "untest" -> {
@@ -175,7 +182,7 @@ public class MainCommand implements CommandExecutor, TabCompleter {
                 return filter(Arrays.asList("1", "2"), args[1]);
             }
             if (args[0].equalsIgnoreCase("test")) {
-                return filter(blockMaterials(), args[1]);
+                return filter(testBlockSuggestions(), args[1]);
             }
         }
 
@@ -188,6 +195,30 @@ public class MainCommand implements CommandExecutor, TabCompleter {
             if (mat.isBlock()) materials.add(mat.name());
         }
         return materials;
+    }
+
+    private List<String> testBlockSuggestions() {
+        List<String> suggestions = new ArrayList<>();
+        suggestions.addAll(plugin.getConfig().getStringList("selectable-blocks"));
+        suggestions.addAll(plugin.getConfig().getStringList("craftengine.blocks"));
+        if (suggestions.isEmpty()) {
+            suggestions.addAll(blockMaterials());
+        }
+        return suggestions;
+    }
+
+    private DisguiseBlock parseTestDisguise(Player player, String rawId) {
+        Material material = Material.matchMaterial(rawId.toUpperCase());
+        if (material != null && material.isBlock()) {
+            return DisguiseBlock.vanilla(material);
+        }
+
+        CraftEngineHook hook = plugin.getCraftEngineHook();
+        if (hook == null || !hook.isAvailable()) {
+            return null;
+        }
+
+        return hook.createBlock(rawId, player);
     }
 
     private List<String> filter(List<String> list, String prefix) {
