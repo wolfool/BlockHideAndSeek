@@ -42,3 +42,11 @@ selectable-blocks:
   - RED_SANDSTONE
   - JACK_O_LANTERN
   - TNT
+
+# CraftEngine 커스텀 블럭도 모드 2 선택 GUI에 같이 들어갑니다.
+# namespace가 없으면 default-namespace가 붙습니다.
+# 예: "chair" -> "craftengine:chair"
+# 예: "my_pack:chair" -> "my_pack:chair"
+craftengine:
+  default-namespace: craftengine
+  blocks: []

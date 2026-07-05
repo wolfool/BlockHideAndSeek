@@ -8,10 +8,12 @@ public class BlockHideAndSeek extends JavaPlugin {
     private KitManager kitManager;
     private GameManager gameManager;
     private BlockSelectMenu blockSelectMenu;
+    private CraftEngineHook craftEngineHook;
 
     @Override
     public void onEnable() {
         saveDefaultConfig();
+        craftEngineHook = createCraftEngineHook();
 
         disguiseManager = new DisguiseManager(this);
         kitManager = new KitManager(this);
@@ -37,4 +39,19 @@ public class BlockHideAndSeek extends JavaPlugin {
     public KitManager getKitManager() { return kitManager; }
     public GameManager getGameManager() { return gameManager; }
     public BlockSelectMenu getBlockSelectMenu() { return blockSelectMenu; }
+    public CraftEngineHook getCraftEngineHook() { return craftEngineHook; }
+
+    private CraftEngineHook createCraftEngineHook() {
+        if (!getServer().getPluginManager().isPluginEnabled("CraftEngine")) {
+            return null;
+        }
+
+        try {
+            getLogger().info("CraftEngine detected. Custom block disguise support enabled.");
+            return new CraftEngineHook(this);
+        } catch (LinkageError error) {
+            getLogger().warning("CraftEngine API를 불러오지 못해 커스텀 블럭 지원을 비활성화합니다: " + error.getClass().getSimpleName());
+            return null;
+        }
+    }
 }
