@@ -8,6 +8,7 @@ public class BlockHideAndSeek extends JavaPlugin {
     private KitManager kitManager;
     private GameManager gameManager;
     private BlockSelectMenu blockSelectMenu;
+    private Mode2BlockManageMenu mode2BlockManageMenu;
     private CraftEngineHook craftEngineHook;
 
     @Override
@@ -19,6 +20,7 @@ public class BlockHideAndSeek extends JavaPlugin {
         kitManager = new KitManager(this);
         gameManager = new GameManager(this);
         blockSelectMenu = new BlockSelectMenu(this);
+        mode2BlockManageMenu = new Mode2BlockManageMenu(this);
 
         getCommand("bhs").setExecutor(new MainCommand(this));
         getServer().getPluginManager().registerEvents(new GameListener(this), this);
@@ -39,6 +41,7 @@ public class BlockHideAndSeek extends JavaPlugin {
     public KitManager getKitManager() { return kitManager; }
     public GameManager getGameManager() { return gameManager; }
     public BlockSelectMenu getBlockSelectMenu() { return blockSelectMenu; }
+    public Mode2BlockManageMenu getMode2BlockManageMenu() { return mode2BlockManageMenu; }
     public CraftEngineHook getCraftEngineHook() { return craftEngineHook; }
 
     private CraftEngineHook createCraftEngineHook() {

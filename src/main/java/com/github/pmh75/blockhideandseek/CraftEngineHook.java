@@ -4,9 +4,11 @@ import net.momirealms.craftengine.bukkit.api.CraftEngineBlocks;
 import net.momirealms.craftengine.bukkit.api.CraftEngineItems;
 import net.momirealms.craftengine.bukkit.item.BukkitItemDefinition;
 import net.momirealms.craftengine.core.block.BlockDefinition;
+import net.momirealms.craftengine.core.block.ImmutableBlockState;
 import net.momirealms.craftengine.core.util.Key;
 import org.bukkit.Bukkit;
 import org.bukkit.Material;
+import org.bukkit.block.Block;
 import org.bukkit.block.data.BlockData;
 import org.bukkit.entity.Player;
 import org.bukkit.inventory.ItemStack;
@@ -51,6 +53,43 @@ public class CraftEngineHook {
             return DisguiseBlock.custom(key.asString(), blockData, icon);
         } catch (RuntimeException | LinkageError ex) {
             warnOnce("error:" + id, "CraftEngine 블럭 로드 실패: " + id + " (" + ex.getClass().getSimpleName() + ")");
+            return null;
+        }
+    }
+
+    public String getCustomItemId(ItemStack item) {
+        if (!isAvailable() || item == null || item.getType() == Material.AIR) {
+            return null;
+        }
+
+        try {
+            if (!CraftEngineItems.isCustomItem(item)) {
+                return null;
+            }
+            Key key = CraftEngineItems.getCustomItemId(item);
+            return key == null ? null : key.asString();
+        } catch (RuntimeException | LinkageError ex) {
+            warnOnce("item-id", "CraftEngine 아이템 ID 조회 실패: " + ex.getClass().getSimpleName());
+            return null;
+        }
+    }
+
+    public String getCustomBlockId(Block block) {
+        if (!isAvailable() || block == null) {
+            return null;
+        }
+
+        try {
+            if (!CraftEngineBlocks.isCustomBlock(block)) {
+                return null;
+            }
+            ImmutableBlockState state = CraftEngineBlocks.getCustomBlockState(block);
+            if (state == null || state.owner() == null || state.owner().value() == null) {
+                return null;
+            }
+            return state.owner().value().id().asString();
+        } catch (RuntimeException | LinkageError ex) {
+            warnOnce("block-id", "CraftEngine 블럭 ID 조회 실패: " + ex.getClass().getSimpleName());
             return null;
         }
     }
