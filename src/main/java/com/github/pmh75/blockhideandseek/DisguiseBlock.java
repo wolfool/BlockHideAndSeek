@@ -35,9 +35,13 @@ public final class DisguiseBlock {
     }
 
     public static DisguiseBlock custom(String id, BlockData blockData, ItemStack icon) {
+        return custom(id, id, blockData, icon);
+    }
+
+    public static DisguiseBlock custom(String id, String displayName, BlockData blockData, ItemStack icon) {
         return new DisguiseBlock(
                 id,
-                id,
+                displayName,
                 blockData.getMaterial(),
                 blockData,
                 icon,

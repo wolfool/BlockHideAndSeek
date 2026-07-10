@@ -1,5 +1,7 @@
 package com.github.pmh75.blockhideandseek;
 
+import com.github.pmh75.blockhideandseek.record.GameRecordContext;
+import com.github.pmh75.blockhideandseek.record.GameRecordRegistry;
 import org.bukkit.Bukkit;
 import org.bukkit.ChatColor;
 import org.bukkit.GameMode;
@@ -49,6 +51,9 @@ public class GameManager {
     // 힌트 사용 횟수 (seeker 당 아닌 게임 전체 공유)
     private int hintsLeft;
 
+    private int runtimeHunterCount = -1;
+    private final Map<UUID, UUID> lastHiderDamager = new HashMap<>();
+
     public GameManager(BlockHideAndSeek plugin) {
         this.plugin = plugin;
         this.bossBar = Bukkit.createBossBar(
@@ -77,6 +82,14 @@ public class GameManager {
 
         assignRoles(online);
         hintsLeft = plugin.getConfig().getInt("hints.max-usages", 3);
+        lastHiderDamager.clear();
+
+        List<UUID> participants = new ArrayList<>();
+        for (Player p : online) {
+            participants.add(p.getUniqueId());
+        }
+        plugin.getGameStatsManager().startTracking(participants);
+        plugin.getEmoteManager().clearCooldowns();
 
         // 모든 플레이어 보스바에 추가
         bossBar.removeAll();
@@ -92,7 +105,8 @@ public class GameManager {
     }
 
     private void assignRoles(List<Player> online) {
-        int seekerCount = Math.max(1, online.size() / 4);
+        int seekerCount = Math.min(getEffectiveHunterCount(), online.size());
+        seekerCount = Math.max(1, seekerCount);
         Collections.shuffle(online);
 
         hiders.clear();
@@ -202,6 +216,8 @@ public class GameManager {
             plugin.getBlockSelectMenu().startChangeTask();
         }
 
+        plugin.getProximityWarningSystem().start();
+
         startTimer(() -> endGame(false));
     }
 
@@ -215,12 +231,20 @@ public class GameManager {
 
         // 모드 2 변경 타이머 중지
         plugin.getBlockSelectMenu().stopChangeTask();
+        plugin.getProximityWarningSystem().stop();
+
+        Set<UUID> snapshotHiders = new HashSet<>(hiders);
+        Set<UUID> snapshotSeekers = new HashSet<>(seekers);
 
         if (seekerWin) {
             broadcast(ChatColor.RED + "" + ChatColor.BOLD + "술래 승리! 모든 도망자를 잡았습니다!");
         } else {
             broadcast(ChatColor.GREEN + "" + ChatColor.BOLD + "도망자 승리! 시간이 종료될 때까지 살아남았습니다!");
         }
+
+        broadcastGameRecords(snapshotHiders, snapshotSeekers);
+
+        plugin.getGameStatsManager().stopTracking();
 
         // 모든 플레이어 위장 해제 + 게임 모드 복원
         for (UUID uid : hiders) {
@@ -243,6 +267,7 @@ public class GameManager {
 
         hiders.clear();
         seekers.clear();
+        lastHiderDamager.clear();
         bossBar.removeAll();
 
         // 3초 후 WAITING으로 리셋 (플러그인 비활성화 중이면 즉시 처리)
@@ -258,7 +283,14 @@ public class GameManager {
     // ─────────────────────────────────────────────
 
     public void onHiderDie(Player hider) {
+        onHiderDie(hider, resolveCatcher(hider));
+    }
+
+    public void onHiderDie(Player hider, Player caughtBy) {
         if (!hiders.contains(hider.getUniqueId())) return;
+
+        plugin.getGameStatsManager().recordHiderCaught(hider, caughtBy);
+        lastHiderDamager.remove(hider.getUniqueId());
 
         plugin.getDisguiseManager().undisguise(hider);
         hider.setGameMode(GameMode.SPECTATOR);
@@ -270,6 +302,89 @@ public class GameManager {
         }
 
         updateScoreboard();
+    }
+
+    public void recordHiderDamaged(Player hider, Player damager) {
+        if (!hiders.contains(hider.getUniqueId())) return;
+        if (!seekers.contains(damager.getUniqueId())) return;
+        lastHiderDamager.put(hider.getUniqueId(), damager.getUniqueId());
+    }
+
+    private Player resolveCatcher(Player hider) {
+        UUID damagerId = lastHiderDamager.get(hider.getUniqueId());
+        if (damagerId == null) {
+            return null;
+        }
+        return Bukkit.getPlayer(damagerId);
+    }
+
+    private void broadcastGameRecords(Set<UUID> snapshotHiders, Set<UUID> snapshotSeekers) {
+        GameRecordRegistry registry = plugin.getGameRecordRegistry();
+        GameRecordContext context = new GameRecordContext(
+                plugin.getGameStatsManager().getAllStats(),
+                snapshotSeekers,
+                snapshotHiders
+        );
+
+        broadcast(ChatColor.GOLD + "" + ChatColor.BOLD + "═══════ 플레이 기록 ═══════");
+        for (Map.Entry<UUID, GameRecordRegistry.AwardedRecord> entry : registry.awardAll(context).entrySet()) {
+            Player player = Bukkit.getPlayer(entry.getKey());
+            String name = player != null ? player.getName() : Bukkit.getOfflinePlayer(entry.getKey()).getName();
+            GameRecordRegistry.AwardedRecord record = entry.getValue();
+            broadcast(ChatColor.YELLOW + name + ChatColor.WHITE + " → " + record.title());
+            broadcast(ChatColor.GRAY + "  " + record.description());
+        }
+    }
+
+    public boolean setForceHunter(Player target) {
+        UUID uid = target.getUniqueId();
+        if (seekers.contains(uid)) {
+            return false;
+        }
+
+        hiders.remove(uid);
+        seekers.add(uid);
+
+        if (state == GameState.HIDING || state == GameState.SEEKING) {
+            plugin.getDisguiseManager().undisguise(target);
+            target.setGameMode(GameMode.ADVENTURE);
+            target.getInventory().clear();
+            if (seekerSpawn != null) {
+                target.teleport(seekerSpawn);
+            }
+            plugin.getKitManager().giveKit(target, "seeker");
+            target.sendTitle(ChatColor.RED + "술래!", ChatColor.WHITE + "관리자에 의해 술래로 지정되었습니다.", 10, 60, 20);
+            broadcast(ChatColor.YELLOW + target.getName() + " 이(가) 술래로 지정되었습니다.");
+        }
+
+        updateScoreboard();
+        return true;
+    }
+
+    public boolean setRuntimeHunterCount(int count) {
+        if (count < 1) {
+            return false;
+        }
+        if (!plugin.getConfig().getBoolean("game.allow-runtime-hunter-change", true)) {
+            return false;
+        }
+        runtimeHunterCount = count;
+        return true;
+    }
+
+    public int getEffectiveHunterCount() {
+        if (runtimeHunterCount > 0) {
+            return runtimeHunterCount;
+        }
+        return plugin.getConfig().getInt("game.hunter-count", 1);
+    }
+
+    public int getConfigHunterCount() {
+        return plugin.getConfig().getInt("game.hunter-count", 1);
+    }
+
+    public int getRuntimeHunterCount() {
+        return runtimeHunterCount;
     }
 
     private int countAliveHiders() {

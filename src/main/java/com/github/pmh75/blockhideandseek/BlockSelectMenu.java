@@ -121,7 +121,7 @@ public class BlockSelectMenu implements Listener {
                     player.closeInventory();
 
                     DisguiseBlock random = choices.get(new Random().nextInt(choices.size()));
-                    plugin.getDisguiseManager().disguise(player, random);
+                    applyDisguise(player, random);
                     player.sendMessage(ChatColor.YELLOW + "시간 초과! " + random.displayName() + " 으로 랜덤 변신되었습니다.");
                     return;
                 }
@@ -216,7 +216,7 @@ public class BlockSelectMenu implements Listener {
         openChoices.remove(player.getUniqueId());
         player.closeInventory();
 
-        plugin.getDisguiseManager().disguise(player, selected);
+        applyDisguise(player, selected);
         player.sendMessage(ChatColor.GREEN + selected.displayName() + " 블럭으로 변신했습니다.");
         player.playSound(player.getLocation(), Sound.ENTITY_PLAYER_LEVELUP, 0.5f, 2f);
     }
@@ -235,6 +235,14 @@ public class BlockSelectMenu implements Listener {
         return openMenus.contains(player.getUniqueId()) && MENU_TITLE.equals(event.getView().getTitle());
     }
 
+    private void applyDisguise(Player player, DisguiseBlock block) {
+        if (block.isCustom()) {
+            plugin.getDisguiseManager().disguiseAsBlock(player, block);
+        } else {
+            plugin.getDisguiseManager().disguise(player, block);
+        }
+    }
+
     private List<DisguiseBlock> loadChoices(Player player) {
         List<DisguiseBlock> choices = new ArrayList<>();
 
@@ -245,22 +253,43 @@ public class BlockSelectMenu implements Listener {
             }
         }
 
-        List<String> customIds = plugin.getConfig().getStringList("craftengine.blocks");
-        if (!customIds.isEmpty()) {
-            CraftEngineHook hook = plugin.getCraftEngineHook();
-            if (hook == null || !hook.isAvailable()) {
+        choices.addAll(loadCraftEngineChoices(player));
+        return deduplicateChoices(choices);
+    }
+
+    private List<DisguiseBlock> loadCraftEngineChoices(Player player) {
+        List<DisguiseBlock> choices = new ArrayList<>();
+        CraftEngineHook hook = plugin.getCraftEngineHook();
+        if (hook == null || !hook.isAvailable()) {
+            if (!plugin.getConfig().getStringList("craftengine.blocks").isEmpty()) {
                 warnOnce("craftengine-unavailable", "craftengine.blocks가 설정됐지만 CraftEngine을 사용할 수 없습니다.");
-            } else {
-                for (String id : customIds) {
-                    DisguiseBlock block = hook.createBlock(id, player);
-                    if (block != null) {
-                        choices.add(block);
-                    }
-                }
             }
+            return choices;
         }
 
+        boolean autoDiscover = plugin.getConfig().getBoolean("craftengine.auto-discover", true);
+        if (autoDiscover) {
+            choices.addAll(hook.loadAllRegisteredBlocks(player));
+        }
+
+        for (String id : plugin.getConfig().getStringList("craftengine.blocks")) {
+            DisguiseBlock block = hook.createBlock(id, player);
+            if (block != null) {
+                choices.add(block);
+            }
+        }
         return choices;
+    }
+
+    private List<DisguiseBlock> deduplicateChoices(List<DisguiseBlock> choices) {
+        List<DisguiseBlock> unique = new ArrayList<>();
+        Set<String> seen = new HashSet<>();
+        for (DisguiseBlock block : choices) {
+            if (seen.add(block.id())) {
+                unique.add(block);
+            }
+        }
+        return unique;
     }
 
     private DisguiseBlock parseVanillaBlock(String name) {

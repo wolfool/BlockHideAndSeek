@@ -8,6 +8,10 @@ game-mode: 2
 # 최소 시작 인원 (테스트 시 1로 낮추세요)
 min-players: 1
 
+game:
+  hunter-count: 1
+  allow-runtime-hunter-change: true
+
 times:
   hide-time: 60   # 숨기 시간 (초)
   game-time: 300  # 술래잡기 시간 (초)
@@ -44,9 +48,45 @@ selectable-blocks:
   - TNT
 
 # CraftEngine 커스텀 블럭도 모드 2 선택 GUI에 같이 들어갑니다.
+# auto-discover: true 이면 CraftEngine에 등록된 모든 커스텀 블럭을 자동으로 불러옵니다.
 # namespace가 없으면 default-namespace가 붙습니다.
 # 예: "chair" -> "craftengine:chair"
 # 예: "my_pack:chair" -> "my_pack:chair"
 craftengine:
+  auto-discover: true
   default-namespace: craftengine
   blocks: []
+
+# 위험도 점수 (5Tick마다 누적 계산)
+danger:
+  check-tick: 5
+  range-8: 1
+  range-5: 3
+  range-3: 5
+  range-1: 10
+
+# 도발(Emote) 설정
+emote:
+  cooldown-seconds: 30
+
+# 스킬 ON/OFF
+skill:
+  hunter-enabled: true
+  hider-enabled: true
+
+# 근접 경고 (숨는 플레이어 전용)
+proximity:
+  check-tick: 5
+  range-8:
+    enabled: true
+    distance: 8
+    heartbeat-sound: true
+  range-5:
+    enabled: true
+    distance: 5
+    screen-shake: true
+  range-3:
+    enabled: true
+    distance: 3
+    warning-sound: true
+    particles: true

@@ -4,6 +4,7 @@ import net.momirealms.craftengine.bukkit.api.CraftEngineBlocks;
 import net.momirealms.craftengine.bukkit.api.CraftEngineItems;
 import net.momirealms.craftengine.bukkit.item.BukkitItemDefinition;
 import net.momirealms.craftengine.core.block.BlockDefinition;
+
 import net.momirealms.craftengine.core.block.ImmutableBlockState;
 import net.momirealms.craftengine.core.util.Key;
 import org.bukkit.Bukkit;
@@ -13,7 +14,10 @@ import org.bukkit.block.data.BlockData;
 import org.bukkit.entity.Player;
 import org.bukkit.inventory.ItemStack;
 
+import java.util.ArrayList;
 import java.util.HashSet;
+import java.util.List;
+import java.util.Map;
 import java.util.Set;
 
 public class CraftEngineHook {
@@ -42,19 +46,47 @@ public class CraftEngineHook {
 
         try {
             Key key = Key.withDefaultNamespace(id, defaultNamespace());
-            BlockDefinition block = CraftEngineBlocks.byId(key);
-            if (block == null) {
-                warnOnce("missing:" + key.asString(), "CraftEngine 블럭을 찾을 수 없습니다: " + key.asString());
-                return null;
-            }
-
-            BlockData blockData = CraftEngineBlocks.getBukkitBlockData(block.defaultState());
-            ItemStack icon = createIcon(key, player, blockData.getMaterial());
-            return DisguiseBlock.custom(key.asString(), blockData, icon);
+            return createBlockFromKey(key, player);
         } catch (RuntimeException | LinkageError ex) {
             warnOnce("error:" + id, "CraftEngine 블럭 로드 실패: " + id + " (" + ex.getClass().getSimpleName() + ")");
             return null;
         }
+    }
+
+    public List<DisguiseBlock> loadAllRegisteredBlocks(Player player) {
+        List<DisguiseBlock> blocks = new ArrayList<>();
+        if (!isAvailable()) {
+            return blocks;
+        }
+
+        try {
+            Map<Key, BlockDefinition> loaded = CraftEngineBlocks.loadedBlocks();
+            for (Map.Entry<Key, BlockDefinition> entry : loaded.entrySet()) {
+                DisguiseBlock block = createBlockFromDefinition(entry.getKey(), entry.getValue(), player);
+                if (block != null) {
+                    blocks.add(block);
+                }
+            }
+        } catch (RuntimeException | LinkageError ex) {
+            warnOnce("load-all", "CraftEngine 블럭 목록 로드 실패: " + ex.getClass().getSimpleName());
+        }
+        return blocks;
+    }
+
+    private DisguiseBlock createBlockFromKey(Key key, Player player) {
+        BlockDefinition block = CraftEngineBlocks.byId(key);
+        if (block == null) {
+            warnOnce("missing:" + key.asString(), "CraftEngine 블럭을 찾을 수 없습니다: " + key.asString());
+            return null;
+        }
+        return createBlockFromDefinition(key, block, player);
+    }
+
+    private DisguiseBlock createBlockFromDefinition(Key key, BlockDefinition block, Player player) {
+        BlockData blockData = CraftEngineBlocks.getBukkitBlockData(block.defaultState());
+        ItemStack icon = createIcon(key, player, blockData.getMaterial());
+        String displayName = key.value().replace('_', ' ');
+        return DisguiseBlock.custom(key.asString(), displayName, blockData, icon);
     }
 
     public String getCustomItemId(ItemStack item) {

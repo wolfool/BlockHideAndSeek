@@ -4,6 +4,7 @@ import net.md_5.bungee.api.chat.ClickEvent;
 import net.md_5.bungee.api.chat.HoverEvent;
 import net.md_5.bungee.api.chat.TextComponent;
 import net.md_5.bungee.api.chat.hover.content.Text;
+import org.bukkit.Bukkit;
 import org.bukkit.ChatColor;
 import org.bukkit.Material;
 import org.bukkit.command.Command;
@@ -131,6 +132,78 @@ public class MainCommand implements CommandExecutor, TabCompleter {
 
             case "hint" -> plugin.getGameManager().useHint(player);
 
+            case "hunter" -> {
+                if (!player.isOp()) {
+                    noPermission(player);
+                    return true;
+                }
+                if (args.length < 2) {
+                    player.sendMessage(ChatColor.RED + "사용법: /bhs hunter <player>");
+                    return true;
+                }
+                Player target = Bukkit.getPlayer(args[1]);
+                if (target == null) {
+                    player.sendMessage(ChatColor.RED + "플레이어를 찾을 수 없습니다: " + args[1]);
+                    return true;
+                }
+                if (plugin.getGameManager().getSeekers().contains(target.getUniqueId())) {
+                    player.sendMessage(ChatColor.YELLOW + target.getName() + " 은(는) 이미 술래입니다.");
+                    return true;
+                }
+                if (plugin.getGameManager().setForceHunter(target)) {
+                    player.sendMessage(ChatColor.GREEN + target.getName() + " 을(를) 술래로 설정했습니다.");
+                } else {
+                    player.sendMessage(ChatColor.RED + "술래 설정에 실패했습니다.");
+                }
+            }
+
+            case "huntercount" -> {
+                if (!player.isOp()) {
+                    noPermission(player);
+                    return true;
+                }
+                if (args.length < 2) {
+                    int effective = plugin.getGameManager().getEffectiveHunterCount();
+                    int configDefault = plugin.getGameManager().getConfigHunterCount();
+                    player.sendMessage(ChatColor.YELLOW + "현재 술래 인원: " + effective + "명 (config 기본값: " + configDefault + "명)");
+                    return true;
+                }
+                try {
+                    int count = Integer.parseInt(args[1]);
+                    if (count < 1) {
+                        player.sendMessage(ChatColor.RED + "술래 인원은 1 이상이어야 합니다.");
+                        return true;
+                    }
+                    if (!plugin.getConfig().getBoolean("game.allow-runtime-hunter-change", true)) {
+                        player.sendMessage(ChatColor.RED + "런타임 술래 인원 변경이 비활성화되어 있습니다.");
+                        return true;
+                    }
+                    if (plugin.getGameManager().setRuntimeHunterCount(count)) {
+                        player.sendMessage(ChatColor.GREEN + "술래 인원을 " + count + "명으로 설정했습니다. (다음 게임 시작부터 적용)");
+                    } else {
+                        player.sendMessage(ChatColor.RED + "술래 인원 설정에 실패했습니다.");
+                    }
+                } catch (NumberFormatException ex) {
+                    player.sendMessage(ChatColor.RED + "올바른 숫자를 입력하세요.");
+                }
+            }
+
+            case "emote" -> {
+                if (args.length < 2) {
+                    player.sendMessage(ChatColor.RED + "사용법: /bhs emote <" + String.join("|", plugin.getEmoteManager().getRegistry().getIds()) + ">");
+                    return true;
+                }
+                plugin.getEmoteManager().useEmote(player, args[1]);
+            }
+
+            case "skill" -> {
+                if (args.length < 2) {
+                    player.sendMessage(ChatColor.RED + "사용법: /bhs skill <" + String.join("|", plugin.getSkillManager().getRegistry().getIds()) + ">");
+                    return true;
+                }
+                plugin.getSkillManager().useSkill(player, args[1]);
+            }
+
             case "test" -> {
                 if (args.length < 2) {
                     player.sendMessage(ChatColor.RED + "사용법: /bhs test <블럭이름|craftengine:id>");
@@ -168,8 +241,10 @@ public class MainCommand implements CommandExecutor, TabCompleter {
         if (args.length == 1) {
             List<String> options = new ArrayList<>();
             options.add("hint");
+            options.add("emote");
+            options.add("skill");
             if (sender.isOp()) {
-                options.addAll(Arrays.asList("start", "stop", "setlobby", "sethider", "setseeker", "setkit", "blocks", "mode", "reload", "test", "untest"));
+                options.addAll(Arrays.asList("start", "stop", "setlobby", "sethider", "setseeker", "setkit", "blocks", "mode", "reload", "test", "untest", "hunter", "huntercount"));
             }
             return filter(options, args[0]);
         }
@@ -183,6 +258,22 @@ public class MainCommand implements CommandExecutor, TabCompleter {
             }
             if (args[0].equalsIgnoreCase("test")) {
                 return filter(testBlockSuggestions(), args[1]);
+            }
+            if (args[0].equalsIgnoreCase("hunter")) {
+                List<String> names = new ArrayList<>();
+                for (Player online : Bukkit.getOnlinePlayers()) {
+                    names.add(online.getName());
+                }
+                return filter(names, args[1]);
+            }
+        }
+
+        if (args.length == 2) {
+            if (args[0].equalsIgnoreCase("emote")) {
+                return filter(plugin.getEmoteManager().getRegistry().getIds(), args[1]);
+            }
+            if (args[0].equalsIgnoreCase("skill")) {
+                return filter(plugin.getSkillManager().getRegistry().getIds(), args[1]);
             }
         }
 
@@ -245,8 +336,12 @@ public class MainCommand implements CommandExecutor, TabCompleter {
             sendClickableCommand(player, "/bhs mode 1", "모드 1로 변경");
             sendClickableCommand(player, "/bhs mode 2", "모드 2로 변경");
             sendClickableCommand(player, "/bhs reload", "설정 리로드");
+            sendClickableCommand(player, "/bhs hunter <player>", "술래 강제 지정");
+            sendClickableCommand(player, "/bhs huntercount <count>", "술래 인원 설정");
         }
         sendClickableCommand(player, "/bhs hint", "힌트 사용 (술래 전용)");
+        sendClickableCommand(player, "/bhs emote <type>", "도발 (도망자 전용)");
+        sendClickableCommand(player, "/bhs skill <type>", "스킬 사용");
     }
 
     private void sendClickableCommand(Player player, String command, String description) {

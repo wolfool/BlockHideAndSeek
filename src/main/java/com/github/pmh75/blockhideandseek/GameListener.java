@@ -68,10 +68,18 @@ public class GameListener implements Listener {
             if (owner != null) {
                 event.setCancelled(true);
                 if (event.getDamager() instanceof Player attacker) {
+                    plugin.getGameManager().recordHiderDamaged(owner, attacker);
                     owner.damage(event.getDamage(), attacker);
                 }
             }
         }
+    }
+
+    @EventHandler(priority = EventPriority.MONITOR, ignoreCancelled = true)
+    public void onHiderDamaged(EntityDamageByEntityEvent event) {
+        if (!(event.getEntity() instanceof Player hider)) return;
+        if (!(event.getDamager() instanceof Player attacker)) return;
+        plugin.getGameManager().recordHiderDamaged(hider, attacker);
     }
 
     // ─────────────────────────────────────────────
@@ -88,7 +96,8 @@ public class GameListener implements Listener {
         if (gm.getHiders().contains(player.getUniqueId())) {
             event.setCancelled(true); // 실제 사망 이벤트 취소
             player.setHealth(player.getMaxHealth()); // 체력 회복 후
-            gm.onHiderDie(player); // 관전자 처리
+            Player killer = player.getKiller();
+            gm.onHiderDie(player, killer); // 관전자 처리
         }
     }
 
